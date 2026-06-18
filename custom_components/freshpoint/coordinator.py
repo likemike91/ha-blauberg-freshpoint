@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from dataclasses import replace
 import logging
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
@@ -47,9 +48,16 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
     async def async_set_power(self, enabled: bool) -> None:
         """Set power and refresh state."""
         await self.hass.async_add_executor_job(self.client.set_power, enabled)
+        if self.data is not None:
+            self.async_set_updated_data(replace(self.data, power=1 if enabled else 0))
         await self.async_request_refresh()
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set speed percentage and refresh state."""
-        await self.hass.async_add_executor_job(self.client.set_percentage, percentage)
+        bounded_percentage = max(10, min(100, percentage))
+        await self.hass.async_add_executor_job(self.client.set_percentage, bounded_percentage)
+        if self.data is not None:
+            self.async_set_updated_data(
+                replace(self.data, power=1, speed_mode=255, percentage=bounded_percentage)
+            )
         await self.async_request_refresh()

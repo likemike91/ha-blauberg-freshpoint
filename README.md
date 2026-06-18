@@ -1,97 +1,80 @@
 # Blauberg Freshpoint for Home Assistant
 
-Custom Home Assistant integration for local control of Blauberg Freshpoint 160 ventilation units over the documented UDP Smart House protocol.
-
-This integration was built against Freshpoint 160 devices that identify as device type `17` and listen on UDP port `4000`.
+Home Assistant custom integration for local control of Blauberg Freshpoint ventilation units.
 
 ## Features
 
-- Local polling, no cloud dependency
-- Config flow setup from the Home Assistant UI
-- Fan entity with on/off and percentage control
-- Sensors for humidity, fan RPM, filter status, rotation direction, recovery efficiency, and device type
-- Supports multiple Freshpoint units by adding each device separately
+- Local control, no cloud dependency
+- Automatic network discovery during setup
+- Fan on/off control
+- Fan percentage control
+- Humidity sensor
+- Supply and extract fan RPM sensors
+- Filter status sensor
+- Rotation direction sensor
+- Recovery efficiency sensor
+- Support for multiple Freshpoint units
 
 ## Installation With HACS
-
-Until this repository is added to the default HACS list, install it as a custom repository.
 
 1. Open HACS in Home Assistant.
 2. Go to **Integrations**.
 3. Open the three-dot menu.
 4. Choose **Custom repositories**.
-5. Add your published repository URL.
+5. Add this repository URL.
 6. Select category **Integration**.
 7. Install **Blauberg Freshpoint**.
 8. Restart Home Assistant.
 
-Recommended repository name:
-
-```text
-ha-blauberg-freshpoint
-```
-
 ## Manual Installation
 
-Copy `custom_components/freshpoint` into your Home Assistant `custom_components` directory:
+Copy the integration folder into your Home Assistant configuration directory:
 
 ```text
-config/custom_components/freshpoint
+custom_components/freshpoint
 ```
 
 Restart Home Assistant.
 
 ## Setup
 
-Add the integration from:
+1. Go to **Settings** -> **Devices & services**.
+2. Select **Add integration**.
+3. Search for **Blauberg Freshpoint**.
+4. Enter the device password. The default password is `1111`.
+5. Keep the default broadcast address unless discovery does not find your devices.
+6. Select the discovered Freshpoint units you want to add.
+
+If discovery does not find your devices, try your subnet broadcast address instead. For example:
 
 ```text
-Settings -> Devices & services -> Add integration -> Blauberg Freshpoint
+192.168.1.255
 ```
 
-During setup the integration broadcasts a discovery request and shows the Freshpoint units it finds. Select the units you want to add.
+or:
 
-You need:
-
-- device password, default `1111`
-
-If discovery does not work on your network, use a subnet broadcast address such as `192.168.1.255` instead of `255.255.255.255`. You can also discover devices with the included helper script:
-
-```bash
-python3 freshpoint_probe.py 192.168.1.255 --broadcast
+```text
+192.168.178.255
 ```
 
-Use your own broadcast address, for example `192.168.178.255`.
+## Supported Devices
 
-## Known Freshpoint Parameters Used
+This integration has been tested with Freshpoint 160 units.
 
-| Parameter | Meaning |
-| --- | --- |
-| `0x0001` | Power |
-| `0x0002` | Speed mode |
-| `0x0044` | Manual speed percentage |
-| `0x0025` | Room humidity |
-| `0x004A` | Supply fan RPM |
-| `0x004B` | Extract fan RPM |
-| `0x0088` | Filter status |
-| `0x00B7` | Fan rotation direction |
-| `0x0129` | Recovery efficiency |
-| `0x00B9` | Device type |
+Other Blauberg Freshpoint models may work if they use the same local control protocol.
 
-## Notes
+## Troubleshooting
 
-Setting a percentage switches the device to manual speed mode by writing:
+If no devices are discovered:
 
-- `0x0002 = 255`
-- `0x0044 = percentage`
+- Confirm Home Assistant is on the same network as the Freshpoint units.
+- Confirm the Freshpoint units are connected to Wi-Fi.
+- Try your subnet broadcast address instead of `255.255.255.255`.
+- Check that firewalls allow local UDP traffic to the Freshpoint units.
+- Confirm the device password is correct.
 
-The integration stores all selected devices in one Home Assistant config entry. Run setup again later to add newly discovered units.
+If entities are unavailable:
 
-## Development
-
-The standalone scripts are included for protocol testing:
-
-- `freshpoint_probe.py`
-- `freshpoint_mqtt_bridge.py`
-
-The Home Assistant integration itself does not require external Python packages.
+- Confirm the Freshpoint IP addresses did not change.
+- Assign static DHCP leases for the Freshpoint units in your router.
+- Restart Home Assistant after changing network settings.
