@@ -1,0 +1,70 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Discover Blauberg Freshpoint units",
+        "description": "Search for Freshpoint units on the local network. Use 255.255.255.255 unless your network requires a subnet broadcast address such as 192.168.1.255.",
+        "data": {
+          "broadcast_address": "Broadcast address",
+          "password": "Password"
+        }
+      },
+      "select": {
+        "title": "Select Freshpoint units",
+        "description": "Choose the discovered Freshpoint units to add.",
+        "data": {
+          "selected_devices": "Freshpoint units"
+        }
+      },
+      "manual": {
+        "title": "Add Blauberg Freshpoint manually",
+        "description": "Enter the Freshpoint IP address and 16-character controller ID.",
+        "data": {
+          "name": "Name",
+          "host": "Host",
+          "controller_id": "Controller ID",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the Freshpoint unit.",
+      "cannot_discover": "Could not send the discovery request.",
+      "no_devices_found": "No new Freshpoint units were discovered.",
+      "no_devices_selected": "Select at least one Freshpoint unit."
+    },
+    "abort": {
+      "already_configured": "This Freshpoint unit is already configured."
+    }
+  },
+  "entity": {
+    "fan": {
+      "fan": {
+        "name": null
+      }
+    },
+    "sensor": {
+      "humidity": {
+        "name": "Humidity"
+      },
+      "supply_rpm": {
+        "name": "Supply fan RPM"
+      },
+      "extract_rpm": {
+        "name": "Extract fan RPM"
+      },
+      "filter_status": {
+        "name": "Filter status"
+      },
+      "direction": {
+        "name": "Direction"
+      },
+      "recovery_efficiency": {
+        "name": "Recovery efficiency"
+      },
+      "device_type": {
+        "name": "Device type"
+      }
+    }
+  }
+}

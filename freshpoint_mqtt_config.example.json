@@ -1,0 +1,38 @@
+{
+  "mqtt": {
+    "host": "homeassistant.local",
+    "port": 1883,
+    "username": "",
+    "password": "",
+    "client_id": "freshpoint-mqtt-bridge",
+    "discovery_prefix": "homeassistant",
+    "topic_prefix": "freshpoint"
+  },
+  "poll_interval_seconds": 20,
+  "freshpoints": [
+    {
+      "name": "Freshpoint 1",
+      "ip": "192.0.2.10",
+      "id": "0000000000000001",
+      "password": "1111"
+    },
+    {
+      "name": "Freshpoint 2",
+      "ip": "192.0.2.11",
+      "id": "0000000000000002",
+      "password": "1111"
+    },
+    {
+      "name": "Freshpoint 3",
+      "ip": "192.0.2.12",
+      "id": "0000000000000003",
+      "password": "1111"
+    },
+    {
+      "name": "Freshpoint 4",
+      "ip": "192.0.2.13",
+      "id": "0000000000000004",
+      "password": "1111"
+    }
+  ]
+}
