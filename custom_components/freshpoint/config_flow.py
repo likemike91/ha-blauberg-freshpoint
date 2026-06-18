@@ -82,7 +82,7 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Select which discovered Freshpoint units to add."""
         errors: dict[str, str] = {}
         options = {
-            controller_id: f"{device.host} ({controller_id})"
+            controller_id: f"{device.name} ({controller_id})"
             for controller_id, device in self._discovered.items()
         }
 
@@ -93,13 +93,13 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 devices = [
                     {
-                        CONF_NAME: f"{DEFAULT_NAME} {index}",
+                        CONF_NAME: self._discovered[controller_id].name,
                         CONF_HOST: self._discovered[controller_id].host,
                         CONF_CONTROLLER_ID: controller_id,
                         CONF_PASSWORD: self._password,
                         "device_type": self._discovered[controller_id].device_type,
                     }
-                    for index, controller_id in enumerate(selected_ids, start=1)
+                    for controller_id in selected_ids
                 ]
                 unique_id = "-".join(sorted(selected_ids))
                 await self.async_set_unique_id(unique_id)

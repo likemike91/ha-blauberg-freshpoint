@@ -26,7 +26,9 @@ async def async_setup_entry(
 class FreshpointFan(CoordinatorEntity[FreshpointCoordinator], FanEntity):
     """Representation of a Freshpoint fan."""
 
-    _attr_supported_features = FanEntityFeature.SET_SPEED
+    _attr_supported_features = (
+        FanEntityFeature.SET_SPEED | FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
+    )
     _attr_has_entity_name = True
     _attr_translation_key = "fan"
     _attr_speed_count = 91
@@ -74,5 +76,4 @@ class FreshpointFan(CoordinatorEntity[FreshpointCoordinator], FanEntity):
         if percentage <= 0:
             await self.async_turn_off()
             return
-        await self.coordinator.async_set_power(True)
         await self.coordinator.async_set_percentage(percentage)

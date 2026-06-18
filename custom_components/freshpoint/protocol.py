@@ -42,6 +42,13 @@ PARAM_SIZES = {
     PARAM_DEVICE_TYPE: 2,
 }
 
+DEVICE_TYPE_NAMES = {
+    17: "Freshpoint 160",
+    20: "Freshpoint Eco 160",
+    22: "Freshpoint 200",
+    24: "Freshpoint Eco 200",
+}
+
 
 @dataclass(frozen=True)
 class FreshpointDiscoveryResult:
@@ -50,6 +57,12 @@ class FreshpointDiscoveryResult:
     host: str
     controller_id: str
     device_type: int | None
+
+    @property
+    def name(self) -> str:
+        """Return a user-friendly discovered device name."""
+        model = DEVICE_TYPE_NAMES.get(self.device_type, "Freshpoint")
+        return f"{model} {self.host}"
 
 
 class FreshpointError(Exception):
