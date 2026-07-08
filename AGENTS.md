@@ -12,12 +12,11 @@ The publishable integration lives in:
 custom_components/freshpoint
 ```
 
-The root-level scripts are development helpers:
+The root-level script is a development helper:
 
 - `freshpoint_probe.py` for discovery and direct protocol testing
-- `freshpoint_mqtt_bridge.py` for the earlier MQTT bridge prototype
 
-Do not make Home Assistant runtime code depend on those helper scripts.
+Do not make Home Assistant runtime code depend on that helper script.
 
 ## Development Rules
 
@@ -49,7 +48,7 @@ Do not make Home Assistant runtime code depend on those helper scripts.
 Before handing off changes, run:
 
 ```bash
-python3 -m py_compile custom_components/freshpoint/*.py freshpoint_probe.py freshpoint_mqtt_bridge.py
+python3 -m py_compile custom_components/freshpoint/*.py freshpoint_probe.py
 python3 -m json.tool hacs.json >/dev/null
 python3 -m json.tool custom_components/freshpoint/manifest.json >/dev/null
 python3 -m json.tool custom_components/freshpoint/strings.json >/dev/null
