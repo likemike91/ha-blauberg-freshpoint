@@ -37,6 +37,17 @@
       "already_configured": "This Freshpoint unit is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Freshpoint options",
+        "description": "Configure the broadcast address used to find configured units again after their IP address changes.",
+        "data": {
+          "broadcast_address": "Rediscovery broadcast address"
+        }
+      }
+    }
+  },
   "entity": {
     "fan": {
       "fan": {
