@@ -11,6 +11,7 @@ from homeassistant.core import callback
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
+    CONF_BROADCAST_ADDRESS,
     CONF_CONTROLLER_ID,
     CONF_DEVICES,
     DEFAULT_DISCOVERY_BROADCAST,
@@ -21,7 +22,6 @@ from .const import (
 )
 from .protocol import FreshpointClient, FreshpointError, FreshpointDiscoveryResult, discover_freshpoints
 
-CONF_BROADCAST_ADDRESS = "broadcast_address"
 CONF_SELECTED_DEVICES = "selected_devices"
 
 
@@ -106,7 +106,11 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=DEFAULT_NAME,
-                    data={CONF_NAME: DEFAULT_NAME, CONF_DEVICES: devices},
+                    data={
+                        CONF_NAME: DEFAULT_NAME,
+                        CONF_BROADCAST_ADDRESS: broadcast_address,
+                        CONF_DEVICES: devices,
+                    },
                 )
 
         return self.async_show_form(
@@ -144,6 +148,7 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=title,
                     data={
                         CONF_NAME: title,
+                        CONF_BROADCAST_ADDRESS: DEFAULT_DISCOVERY_BROADCAST,
                         CONF_DEVICES: [
                             {
                                 CONF_NAME: title,
@@ -184,4 +189,20 @@ class FreshpointOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage options."""
-        return self.async_show_form(step_id="init", data_schema=vol.Schema({}))
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        broadcast_address = self.config_entry.options.get(
+            CONF_BROADCAST_ADDRESS
+        ) or self.config_entry.data.get(CONF_BROADCAST_ADDRESS, DEFAULT_DISCOVERY_BROADCAST)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_BROADCAST_ADDRESS,
+                        default=broadcast_address,
+                    ): str,
+                }
+            ),
+        )

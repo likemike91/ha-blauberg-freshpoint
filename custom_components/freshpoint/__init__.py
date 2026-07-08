@@ -16,7 +16,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Blauberg Freshpoint from a config entry."""
     coordinators = []
     for device in entry.data[CONF_DEVICES]:
-        coordinator = FreshpointCoordinator(hass, device)
+        coordinator = FreshpointCoordinator(hass, entry, device)
         await coordinator.async_config_entry_first_refresh()
         coordinators.append(coordinator)
 
