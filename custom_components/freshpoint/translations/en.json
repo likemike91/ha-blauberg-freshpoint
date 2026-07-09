@@ -18,11 +18,10 @@
       },
       "manual": {
         "title": "Add Blauberg Freshpoint manually",
-        "description": "Enter the Freshpoint IP address and 16-character controller ID.",
+        "description": "Enter the Freshpoint IP address. This can be used when UDP broadcast discovery cannot cross a router or VLAN boundary.",
         "data": {
           "name": "Name",
           "host": "Host",
-          "controller_id": "Controller ID",
           "password": "Password"
         }
       }
