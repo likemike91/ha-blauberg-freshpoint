@@ -3,9 +3,10 @@
     "step": {
       "user": {
         "title": "Discover Blauberg Freshpoint units",
-        "description": "Search for Freshpoint units on the local network. Use 255.255.255.255 unless your network requires a subnet broadcast address such as 192.168.1.255.",
+        "description": "Search for Freshpoint units on the local network. Use a subnet broadcast address such as 192.168.2.255. If Home Assistant has multiple network interfaces, set Source address to Home Assistant's IP on that subnet.",
         "data": {
           "broadcast_address": "Broadcast address",
+          "source_address": "Source address",
           "password": "Password"
         }
       },
@@ -40,9 +41,10 @@
     "step": {
       "init": {
         "title": "Freshpoint options",
-        "description": "Configure the broadcast address used to find configured units again after their IP address changes.",
+        "description": "Configure how the integration searches for configured units again after their IP address changes.",
         "data": {
-          "broadcast_address": "Rediscovery broadcast address"
+          "broadcast_address": "Rediscovery broadcast address",
+          "source_address": "Rediscovery source address"
         }
       }
     }

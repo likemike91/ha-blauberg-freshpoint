@@ -17,6 +17,7 @@ from .const import (
     CONF_BROADCAST_ADDRESS,
     CONF_CONTROLLER_ID,
     CONF_DEVICES,
+    CONF_SOURCE_ADDRESS,
     DEFAULT_PORT,
     DEFAULT_DISCOVERY_BROADCAST,
     DEFAULT_SCAN_INTERVAL_SECONDS,
@@ -77,11 +78,15 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
             ) or self.config_entry.data.get(
                 CONF_BROADCAST_ADDRESS, DEFAULT_DISCOVERY_BROADCAST
             )
+            source_address = self.config_entry.options.get(
+                CONF_SOURCE_ADDRESS
+            ) or self.config_entry.data.get(CONF_SOURCE_ADDRESS, "")
             discovered = await self.hass.async_add_executor_job(
                 partial(
                     discover_freshpoints,
                     broadcast_address=broadcast_address,
                     password=self.device[CONF_PASSWORD],
+                    source_address=source_address or None,
                     port=self.device.get("port", DEFAULT_PORT),
                 )
             )

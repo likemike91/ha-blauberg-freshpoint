@@ -10,6 +10,7 @@ DEFAULT_DEVICE_ID = "DEFAULT_DEVICEID"
 
 CONF_CONTROLLER_ID = "controller_id"
 CONF_BROADCAST_ADDRESS = "broadcast_address"
+CONF_SOURCE_ADDRESS = "source_address"
 CONF_DEVICES = "devices"
 
 PARAM_POWER = 0x0001
