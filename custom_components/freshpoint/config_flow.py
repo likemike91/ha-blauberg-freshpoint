@@ -14,6 +14,7 @@ from .const import (
     CONF_BROADCAST_ADDRESS,
     CONF_CONTROLLER_ID,
     CONF_DEVICES,
+    CONF_SOURCE_ADDRESS,
     DEFAULT_DISCOVERY_BROADCAST,
     DEFAULT_NAME,
     DEFAULT_PASSWORD,
@@ -36,6 +37,8 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._password = DEFAULT_PASSWORD
+        self._broadcast_address = DEFAULT_DISCOVERY_BROADCAST
+        self._source_address = ""
         self._discovered: dict[str, FreshpointDiscoveryResult] = {}
 
     def _configured_controller_ids(self) -> set[str]:
@@ -52,13 +55,15 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._password = user_input[CONF_PASSWORD]
-            broadcast_address = user_input[CONF_BROADCAST_ADDRESS]
+            self._broadcast_address = user_input[CONF_BROADCAST_ADDRESS]
+            self._source_address = user_input.get(CONF_SOURCE_ADDRESS, "").strip()
             try:
                 discovered = await self.hass.async_add_executor_job(
                     partial(
                         discover_freshpoints,
-                        broadcast_address=broadcast_address,
+                        broadcast_address=self._broadcast_address,
                         password=self._password,
+                        source_address=self._source_address or None,
                     )
                 )
             except OSError:
@@ -80,6 +85,7 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_BROADCAST_ADDRESS, default=DEFAULT_DISCOVERY_BROADCAST): str,
+                    vol.Optional(CONF_SOURCE_ADDRESS, default=""): str,
                     vol.Required(CONF_PASSWORD, default=DEFAULT_PASSWORD): str,
                 }
             ),
@@ -116,7 +122,8 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=DEFAULT_NAME,
                     data={
                         CONF_NAME: DEFAULT_NAME,
-                        CONF_BROADCAST_ADDRESS: broadcast_address,
+                        CONF_BROADCAST_ADDRESS: self._broadcast_address,
+                        CONF_SOURCE_ADDRESS: self._source_address,
                         CONF_DEVICES: devices,
                     },
                 )
@@ -163,6 +170,7 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_NAME: title,
                         CONF_BROADCAST_ADDRESS: DEFAULT_DISCOVERY_BROADCAST,
+                        CONF_SOURCE_ADDRESS: "",
                         CONF_DEVICES: [
                             {
                                 CONF_NAME: title,
@@ -208,6 +216,9 @@ class FreshpointOptionsFlow(config_entries.OptionsFlow):
         broadcast_address = self.config_entry.options.get(
             CONF_BROADCAST_ADDRESS
         ) or self.config_entry.data.get(CONF_BROADCAST_ADDRESS, DEFAULT_DISCOVERY_BROADCAST)
+        source_address = self.config_entry.options.get(
+            CONF_SOURCE_ADDRESS
+        ) or self.config_entry.data.get(CONF_SOURCE_ADDRESS, "")
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -216,6 +227,7 @@ class FreshpointOptionsFlow(config_entries.OptionsFlow):
                         CONF_BROADCAST_ADDRESS,
                         default=broadcast_address,
                     ): str,
+                    vol.Optional(CONF_SOURCE_ADDRESS, default=source_address): str,
                 }
             ),
         )

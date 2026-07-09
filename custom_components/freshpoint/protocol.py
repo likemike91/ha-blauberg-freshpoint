@@ -198,6 +198,7 @@ def discover_freshpoints(
     *,
     broadcast_address: str,
     password: str,
+    source_address: str | None = None,
     port: int = DEFAULT_PORT,
     timeout: float = 3.0,
 ) -> list[FreshpointDiscoveryResult]:
@@ -212,6 +213,8 @@ def discover_freshpoints(
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.settimeout(timeout)
+        if source_address:
+            sock.bind((source_address, 0))
         sock.sendto(request, (broadcast_address, port))
 
         while True:
