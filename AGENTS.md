@@ -27,6 +27,7 @@ Do not make Home Assistant runtime code depend on that helper script.
 - Keep one config flow capable of discovering multiple Freshpoint units.
 - Treat UDP calls as blocking I/O and run them through Home Assistant executor jobs.
 - Preserve compatibility with multiple Freshpoint devices in one config entry.
+- Bump `version` in `custom_components/freshpoint/manifest.json` when adding user-visible features or behavior changes.
 
 ## Protocol Notes
 
@@ -52,13 +53,14 @@ python3 -m py_compile custom_components/freshpoint/*.py freshpoint_probe.py
 python3 -m json.tool hacs.json >/dev/null
 python3 -m json.tool custom_components/freshpoint/manifest.json >/dev/null
 python3 -m json.tool custom_components/freshpoint/strings.json >/dev/null
+python3 -m json.tool custom_components/freshpoint/translations/en.json >/dev/null
 ```
 
 If Home Assistant test tooling is added later, prefer validating with `hassfest` and a real Home Assistant instance.
 
 ## Release Checklist
 
-- Update `version` in `custom_components/freshpoint/manifest.json`.
+- Confirm `version` in `custom_components/freshpoint/manifest.json` was updated for feature or behavior changes.
 - Replace placeholder GitHub URLs in `manifest.json`.
 - Confirm `README.md` installation instructions match the published repository URL.
 - Test setup flow in Home Assistant:
