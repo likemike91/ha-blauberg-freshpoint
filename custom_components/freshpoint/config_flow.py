@@ -18,9 +18,13 @@ from .const import (
     DEFAULT_NAME,
     DEFAULT_PASSWORD,
     DOMAIN,
-    PARAM_DEVICE_TYPE,
 )
-from .protocol import FreshpointClient, FreshpointError, FreshpointDiscoveryResult, discover_freshpoints
+from .protocol import (
+    FreshpointError,
+    FreshpointDiscoveryResult,
+    discover_freshpoints,
+    identify_freshpoint,
+)
 
 CONF_SELECTED_DEVICES = "selected_devices"
 
@@ -33,6 +37,14 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         self._password = DEFAULT_PASSWORD
         self._discovered: dict[str, FreshpointDiscoveryResult] = {}
+
+    def _configured_controller_ids(self) -> set[str]:
+        """Return controller IDs already configured in any Freshpoint entry."""
+        return {
+            device[CONF_CONTROLLER_ID]
+            for entry in self._async_current_entries()
+            for device in entry.data.get(CONF_DEVICES, [])
+        }
 
     async def async_step_user(self, user_input=None):
         """Discover Freshpoint units on the local network."""
@@ -52,18 +64,14 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except OSError:
                 errors["base"] = "cannot_discover"
             else:
-                configured_ids = {
-                    device[CONF_CONTROLLER_ID]
-                    for entry in self._async_current_entries()
-                    for device in entry.data.get(CONF_DEVICES, [])
-                }
+                configured_ids = self._configured_controller_ids()
                 self._discovered = {
                     device.controller_id: device
                     for device in discovered
                     if device.controller_id not in configured_ids
                 }
                 if not self._discovered:
-                    errors["base"] = "no_devices_found"
+                    return await self.async_step_manual()
                 else:
                     return await self.async_step_select()
 
@@ -132,15 +140,21 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             host = user_input[CONF_HOST]
-            controller_id = user_input[CONF_CONTROLLER_ID]
             password = user_input[CONF_PASSWORD]
 
             try:
-                client = FreshpointClient(host, controller_id, password)
-                values = await self.hass.async_add_executor_job(client.read, [PARAM_DEVICE_TYPE])
+                device = await self.hass.async_add_executor_job(
+                    partial(identify_freshpoint, host=host, password=password)
+                )
             except (FreshpointError, OSError):
                 errors["base"] = "cannot_connect"
             else:
+                controller_id = device.controller_id
+                if controller_id in self._configured_controller_ids():
+                    await self.async_set_unique_id(controller_id)
+                    self._abort_if_unique_id_configured()
+                    return self.async_abort(reason="already_configured")
+
                 await self.async_set_unique_id(controller_id)
                 self._abort_if_unique_id_configured()
                 title = user_input[CONF_NAME]
@@ -155,7 +169,7 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 CONF_HOST: host,
                                 CONF_CONTROLLER_ID: controller_id,
                                 CONF_PASSWORD: password,
-                                "device_type": values.get(PARAM_DEVICE_TYPE),
+                                "device_type": device.device_type,
                             }
                         ],
                     },
@@ -167,7 +181,6 @@ class FreshpointConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
                     vol.Required(CONF_HOST): str,
-                    vol.Required(CONF_CONTROLLER_ID): str,
                     vol.Required(CONF_PASSWORD, default=DEFAULT_PASSWORD): str,
                 }
             ),

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from .const import (
+    DEFAULT_DEVICE_ID,
     DEFAULT_PORT,
     PARAM_DEVICE_ID,
     PARAM_DEVICE_TYPE,
@@ -238,6 +239,28 @@ def discover_freshpoints(
     return sorted(results.values(), key=lambda result: result.host)
 
 
+def identify_freshpoint(
+    *,
+    host: str,
+    password: str,
+    port: int = DEFAULT_PORT,
+    timeout: float = 2.0,
+) -> FreshpointDiscoveryResult:
+    """Identify a Freshpoint device by host when broadcast discovery is unavailable."""
+    client = FreshpointClient(host, DEFAULT_DEVICE_ID, password, port=port, timeout=timeout)
+    values = client.read([PARAM_DEVICE_ID, PARAM_DEVICE_TYPE])
+    raw_device_id = values.get(PARAM_DEVICE_ID)
+    if not isinstance(raw_device_id, bytes):
+        raise FreshpointError("response did not include a controller ID")
+
+    device_type = values.get(PARAM_DEVICE_TYPE)
+    return FreshpointDiscoveryResult(
+        host=host,
+        controller_id=raw_device_id.decode("ascii", "replace"),
+        device_type=device_type if isinstance(device_type, int) else None,
+    )
+
+
 class FreshpointClient:
     """Blocking UDP client for a Freshpoint unit."""
 
@@ -256,7 +279,7 @@ class FreshpointClient:
         self.port = port
         self.timeout = timeout
 
-    def _send(self, function: int, data: bytes) -> dict[int, int | None]:
+    def _send(self, function: int, data: bytes) -> dict[int, int | bytes | None]:
         request = _packet(self.controller_id, self.password, function, data)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.settimeout(self.timeout)
@@ -267,7 +290,7 @@ class FreshpointClient:
                 raise FreshpointTimeoutError("Freshpoint did not respond") from exc
         return _parse_response(response)
 
-    def read(self, params: Iterable[int]) -> dict[int, int | None]:
+    def read(self, params: Iterable[int]) -> dict[int, int | bytes | None]:
         """Read raw parameter values."""
         return self._send(FUNC_READ, _read_param_stream(params))
 
