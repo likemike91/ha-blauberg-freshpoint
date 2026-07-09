@@ -237,6 +237,7 @@ def main():
     args = parser.parse_args()
     if args.command is None:
         args.command = "read"
+        args.params = "0x007c,0x00b9"
 
     try:
         if args.command == "read":
