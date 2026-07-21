@@ -9,7 +9,14 @@ from homeassistant.core import HomeAssistant
 from .const import CONF_DEVICES, DOMAIN
 from .coordinator import FreshpointCoordinator
 
-PLATFORMS: list[Platform] = [Platform.FAN, Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.FAN,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -7,7 +7,13 @@ from typing import Callable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, PERCENTAGE
+from homeassistant.const import (
+    CONF_NAME,
+    CONCENTRATION_PARTS_PER_MILLION,
+    PERCENTAGE,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -21,10 +27,47 @@ from .protocol import FreshpointState
 class FreshpointSensorDescription(SensorEntityDescription):
     """Describes a Freshpoint sensor."""
 
-    value_fn: Callable[[FreshpointState], int | None]
+    value_fn: Callable[[FreshpointState], int | float | str | None]
+    supported_fn: Callable[[FreshpointState], bool] = lambda _state: True
 
 
 SENSORS: tuple[FreshpointSensorDescription, ...] = (
+    FreshpointSensorDescription(
+        key="outdoor_temperature",
+        translation_key="outdoor_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.outdoor_temperature,
+    ),
+    FreshpointSensorDescription(
+        key="supply_temperature",
+        translation_key="supply_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.supply_temperature,
+    ),
+    FreshpointSensorDescription(
+        key="extract_inlet_temperature",
+        translation_key="extract_inlet_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.extract_inlet_temperature,
+    ),
+    FreshpointSensorDescription(
+        key="extract_outlet_temperature",
+        translation_key="extract_outlet_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.extract_outlet_temperature,
+    ),
     FreshpointSensorDescription(
         key="humidity",
         translation_key="humidity",
@@ -32,6 +75,23 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda state: state.humidity,
+    ),
+    FreshpointSensorDescription(
+        key="co2",
+        translation_key="co2",
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        device_class=SensorDeviceClass.CO2,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda state: state.co2,
+        supported_fn=lambda state: state.co2 is not None,
+    ),
+    FreshpointSensorDescription(
+        key="voc",
+        translation_key="voc",
+        device_class=SensorDeviceClass.AQI,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda state: state.voc,
+        supported_fn=lambda state: state.voc is not None,
     ),
     FreshpointSensorDescription(
         key="supply_rpm",
@@ -51,6 +111,38 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
         key="filter_status",
         translation_key="filter_status",
         value_fn=lambda state: state.filter_status,
+    ),
+    FreshpointSensorDescription(
+        key="filter_countdown",
+        translation_key="filter_countdown",
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.filter_countdown_hours,
+        supported_fn=lambda state: state.filter_countdown_hours is not None,
+    ),
+    FreshpointSensorDescription(
+        key="motor_runtime",
+        translation_key="motor_runtime",
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.motor_runtime_hours,
+        supported_fn=lambda state: state.motor_runtime_hours is not None,
+    ),
+    FreshpointSensorDescription(
+        key="fault_warning",
+        translation_key="fault_warning",
+        device_class=SensorDeviceClass.ENUM,
+        options=["normal", "alarm", "warning", "unknown"],
+        value_fn=lambda state: {
+            0: "normal",
+            1: "alarm",
+            2: "warning",
+        }.get(state.fault_warning, "unknown"),
+        supported_fn=lambda state: state.fault_warning is not None,
     ),
     FreshpointSensorDescription(
         key="direction",
@@ -83,6 +175,7 @@ async def async_setup_entry(
         FreshpointSensor(coordinator, description)
         for coordinator in coordinators
         for description in SENSORS
+        if description.supported_fn(coordinator.data)
     )
 
 
@@ -108,6 +201,6 @@ class FreshpointSensor(CoordinatorEntity[FreshpointCoordinator], SensorEntity):
         }
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> int | float | str | None:
         """Return the sensor value."""
         return self.entity_description.value_fn(self.coordinator.data)

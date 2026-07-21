@@ -50,14 +50,70 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "filter": {
+        "name": "Filter needs replacement"
+      },
+      "heater_active": {
+        "name": "Heater active"
+      },
+      "frost_protection": {
+        "name": "Frost protection active"
+      },
+      "problem": {
+        "name": "Problem"
+      }
+    },
+    "button": {
+      "filter_reset": {
+        "name": "Reset filter timer"
+      }
+    },
     "fan": {
       "fan": {
         "name": null
       }
     },
+    "select": {
+      "operating_mode": {
+        "name": "Operating mode",
+        "state": {
+          "ventilation": "Ventilation",
+          "recovery": "Heat recovery",
+          "supply": "Supply only",
+          "extract": "Extraction only"
+        }
+      },
+      "timer_mode": {
+        "name": "Timer mode",
+        "state": {
+          "off": "Off",
+          "night": "Night",
+          "turbo": "Turbo"
+        }
+      }
+    },
     "sensor": {
+      "outdoor_temperature": {
+        "name": "Outdoor air temperature"
+      },
+      "supply_temperature": {
+        "name": "Supply air temperature"
+      },
+      "extract_inlet_temperature": {
+        "name": "Extract air temperature (inlet)"
+      },
+      "extract_outlet_temperature": {
+        "name": "Extract air temperature (outlet)"
+      },
       "humidity": {
         "name": "Humidity"
+      },
+      "co2": {
+        "name": "Carbon dioxide"
+      },
+      "voc": {
+        "name": "Air quality (VOC)"
       },
       "supply_rpm": {
         "name": "Supply fan RPM"
@@ -68,6 +124,21 @@
       "filter_status": {
         "name": "Filter status"
       },
+      "filter_countdown": {
+        "name": "Filter time remaining"
+      },
+      "motor_runtime": {
+        "name": "Motor runtime"
+      },
+      "fault_warning": {
+        "name": "Fault or warning",
+        "state": {
+          "normal": "Normal",
+          "alarm": "Alarm",
+          "warning": "Warning",
+          "unknown": "Unknown"
+        }
+      },
       "direction": {
         "name": "Direction"
       },
@@ -76,6 +147,11 @@
       },
       "device_type": {
         "name": "Device type"
+      }
+    },
+    "switch": {
+      "heater": {
+        "name": "Heater"
       }
     }
   }

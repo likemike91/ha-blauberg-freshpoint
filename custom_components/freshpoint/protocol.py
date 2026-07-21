@@ -10,17 +10,31 @@ from typing import Iterable
 from .const import (
     DEFAULT_DEVICE_ID,
     DEFAULT_PORT,
+    PARAM_CO2,
     PARAM_DEVICE_ID,
     PARAM_DEVICE_TYPE,
     PARAM_DIRECTION,
+    PARAM_EXTRACT_INLET_TEMPERATURE,
+    PARAM_EXTRACT_OUTLET_TEMPERATURE,
     PARAM_EXTRACT_RPM,
+    PARAM_FAULT_WARNING,
+    PARAM_FILTER_COUNTDOWN,
+    PARAM_FILTER_RESET,
     PARAM_FILTER_STATUS,
+    PARAM_FROST_PROTECTION,
+    PARAM_HEATER_CONTROL,
+    PARAM_HEATER_STATUS,
     PARAM_HUMIDITY,
     PARAM_MANUAL_SPEED,
+    PARAM_MOTOR_RUNTIME,
+    PARAM_OUTDOOR_TEMPERATURE,
     PARAM_POWER,
     PARAM_RECOVERY_EFFICIENCY,
     PARAM_SPEED_MODE,
+    PARAM_SUPPLY_TEMPERATURE,
     PARAM_SUPPLY_RPM,
+    PARAM_TIMER_MODE,
+    PARAM_VOC,
 )
 
 START = b"\xfd\xfd"
@@ -32,15 +46,29 @@ FUNC_RESPONSE = 0x06
 PARAM_SIZES = {
     PARAM_POWER: 1,
     PARAM_SPEED_MODE: 1,
+    PARAM_TIMER_MODE: 1,
     PARAM_MANUAL_SPEED: 1,
+    PARAM_OUTDOOR_TEMPERATURE: 2,
+    PARAM_SUPPLY_TEMPERATURE: 2,
+    PARAM_EXTRACT_INLET_TEMPERATURE: 2,
+    PARAM_EXTRACT_OUTLET_TEMPERATURE: 2,
     PARAM_HUMIDITY: 1,
+    PARAM_CO2: 2,
     PARAM_SUPPLY_RPM: 2,
     PARAM_EXTRACT_RPM: 2,
+    PARAM_FILTER_COUNTDOWN: 4,
+    PARAM_FILTER_RESET: 1,
+    PARAM_HEATER_CONTROL: 1,
+    PARAM_MOTOR_RUNTIME: 4,
+    PARAM_HEATER_STATUS: 1,
+    PARAM_FAULT_WARNING: 1,
     PARAM_FILTER_STATUS: 1,
     PARAM_DIRECTION: 1,
     PARAM_RECOVERY_EFFICIENCY: 1,
     PARAM_DEVICE_ID: 16,
     PARAM_DEVICE_TYPE: 2,
+    PARAM_FROST_PROTECTION: 1,
+    PARAM_VOC: 2,
 }
 
 DEVICE_TYPE_NAMES = {
@@ -80,18 +108,53 @@ class FreshpointState:
 
     power: int | None = None
     speed_mode: int | None = None
+    timer_mode: int | None = None
     percentage: int | None = None
+    outdoor_temperature: float | None = None
+    supply_temperature: float | None = None
+    extract_inlet_temperature: float | None = None
+    extract_outlet_temperature: float | None = None
     humidity: int | None = None
+    co2: int | None = None
     supply_rpm: int | None = None
     extract_rpm: int | None = None
+    filter_countdown_hours: float | None = None
+    heater_control: int | None = None
+    motor_runtime_hours: float | None = None
+    heater_status: int | None = None
+    fault_warning: int | None = None
     filter_status: int | None = None
     direction: int | None = None
     recovery_efficiency: int | None = None
+    frost_protection: int | None = None
+    voc: int | None = None
     device_type: int | None = None
 
 
 def _checksum(payload: bytes | bytearray) -> int:
     return sum(payload) & 0xFFFF
+
+
+def _decode_temperature(value: int | bytes | None) -> float | None:
+    """Decode a signed, tenths-of-a-degree Freshpoint temperature."""
+    if not isinstance(value, int):
+        return None
+    signed_value = value - 0x10000 if value >= 0x8000 else value
+    if signed_value in (-32768, 32767):
+        return None
+    return signed_value / 10
+
+
+def _decode_packed_duration_hours(value: int | bytes | None) -> float | None:
+    """Decode minutes, hours and uint16 days packed into four bytes."""
+    if not isinstance(value, int):
+        return None
+    minutes = value & 0xFF
+    hours = (value >> 8) & 0xFF
+    days = (value >> 16) & 0xFFFF
+    if minutes > 59 or hours > 23:
+        return None
+    return days * 24 + hours + minutes / 60
 
 
 def _read_param_stream(params: Iterable[int]) -> bytes:
@@ -303,13 +366,38 @@ class FreshpointClient:
         return FreshpointState(
             power=values.get(PARAM_POWER),
             speed_mode=values.get(PARAM_SPEED_MODE),
+            timer_mode=values.get(PARAM_TIMER_MODE),
             percentage=values.get(PARAM_MANUAL_SPEED),
+            outdoor_temperature=_decode_temperature(
+                values.get(PARAM_OUTDOOR_TEMPERATURE)
+            ),
+            supply_temperature=_decode_temperature(
+                values.get(PARAM_SUPPLY_TEMPERATURE)
+            ),
+            extract_inlet_temperature=_decode_temperature(
+                values.get(PARAM_EXTRACT_INLET_TEMPERATURE)
+            ),
+            extract_outlet_temperature=_decode_temperature(
+                values.get(PARAM_EXTRACT_OUTLET_TEMPERATURE)
+            ),
             humidity=values.get(PARAM_HUMIDITY),
+            co2=values.get(PARAM_CO2),
             supply_rpm=values.get(PARAM_SUPPLY_RPM),
             extract_rpm=values.get(PARAM_EXTRACT_RPM),
+            filter_countdown_hours=_decode_packed_duration_hours(
+                values.get(PARAM_FILTER_COUNTDOWN)
+            ),
+            heater_control=values.get(PARAM_HEATER_CONTROL),
+            motor_runtime_hours=_decode_packed_duration_hours(
+                values.get(PARAM_MOTOR_RUNTIME)
+            ),
+            heater_status=values.get(PARAM_HEATER_STATUS),
+            fault_warning=values.get(PARAM_FAULT_WARNING),
             filter_status=values.get(PARAM_FILTER_STATUS),
             direction=values.get(PARAM_DIRECTION),
             recovery_efficiency=values.get(PARAM_RECOVERY_EFFICIENCY),
+            frost_protection=values.get(PARAM_FROST_PROTECTION),
+            voc=values.get(PARAM_VOC),
             device_type=values.get(PARAM_DEVICE_TYPE),
         )
 
@@ -325,3 +413,23 @@ class FreshpointClient:
         """Set manual speed percentage."""
         bounded_percentage = max(10, min(100, percentage))
         self.write([(PARAM_SPEED_MODE, 255), (PARAM_MANUAL_SPEED, bounded_percentage)])
+
+    def set_direction(self, direction: int) -> None:
+        """Set ventilation direction/mode."""
+        if direction not in range(4):
+            raise ValueError(f"unsupported Freshpoint direction {direction}")
+        self.write([(PARAM_DIRECTION, direction)])
+
+    def set_timer_mode(self, timer_mode: int) -> None:
+        """Set normal, night or turbo timer mode."""
+        if timer_mode not in range(3):
+            raise ValueError(f"unsupported Freshpoint timer mode {timer_mode}")
+        self.write([(PARAM_TIMER_MODE, timer_mode)])
+
+    def set_heater(self, enabled: bool) -> None:
+        """Enable or disable heater control."""
+        self.write([(PARAM_HEATER_CONTROL, 1 if enabled else 0)])
+
+    def reset_filter(self) -> None:
+        """Reset the filter replacement countdown."""
+        self.write([(PARAM_FILTER_RESET, 1)])

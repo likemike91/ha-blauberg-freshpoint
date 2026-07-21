@@ -8,12 +8,30 @@ Home Assistant custom integration for local control of Blauberg Freshpoint venti
 - Automatic network discovery during setup
 - Fan on/off control
 - Fan percentage control
+- Operating mode control: ventilation, heat recovery, supply only, and extraction only
+- Night and turbo timer control
+- Heater control and active-state feedback
+- Outdoor, supply, extract inlet, and extract outlet temperature sensors
 - Humidity sensor
+- Optional CO2 and VOC/air-quality sensors on models that report them
 - Supply and extract fan RPM sensors
-- Filter status sensor
+- Filter status, remaining-time sensor, and filter-timer reset button
+- Motor runtime sensor
+- Alarm/warning and frost-protection status
 - Rotation direction sensor
 - Recovery efficiency sensor
 - Support for multiple Freshpoint units
+
+Temperature support follows the device protocol: values are reported in 0.1 degrees Celsius.
+If a model does not have a documented temperature sensor, that entity reports no value.
+
+## Other Protocol Capabilities
+
+The Freshpoint Smart Home protocol additionally documents humidity/CO2/VOC automation thresholds,
+weekly scheduling, adjustable timer durations, speed-profile tuning, alarm reset, and display
+settings. Wi-Fi credentials, factory reset, RTC/schedule editing, and display configuration are
+intentionally not exposed. Those controls are security-sensitive, destructive, or better handled
+by the Blauberg app until their behavior is verified on real hardware.
 
 ## Installation With HACS
 
