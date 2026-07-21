@@ -142,3 +142,31 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
                 replace(self.data, power=1, speed_mode=255, percentage=bounded_percentage)
             )
         await self.async_request_refresh()
+
+    async def async_set_direction(self, direction: int) -> None:
+        """Set ventilation direction/mode and refresh state."""
+        await self._async_call_with_rediscovery(self.client.set_direction, direction)
+        if self.data is not None:
+            self.async_set_updated_data(replace(self.data, direction=direction))
+        await self.async_request_refresh()
+
+    async def async_set_timer_mode(self, timer_mode: int) -> None:
+        """Set timer mode and refresh state."""
+        await self._async_call_with_rediscovery(self.client.set_timer_mode, timer_mode)
+        if self.data is not None:
+            self.async_set_updated_data(replace(self.data, timer_mode=timer_mode))
+        await self.async_request_refresh()
+
+    async def async_set_heater(self, enabled: bool) -> None:
+        """Set heater control and refresh state."""
+        await self._async_call_with_rediscovery(self.client.set_heater, enabled)
+        if self.data is not None:
+            self.async_set_updated_data(
+                replace(self.data, heater_control=1 if enabled else 0)
+            )
+        await self.async_request_refresh()
+
+    async def async_reset_filter(self) -> None:
+        """Reset filter countdown and refresh state."""
+        await self._async_call_with_rediscovery(self.client.reset_filter)
+        await self.async_request_refresh()

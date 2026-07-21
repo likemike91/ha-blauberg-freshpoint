@@ -20,7 +20,10 @@ jobs:
           python-version: "3.12"
 
       - name: Compile Python files
-        run: python -m py_compile custom_components/freshpoint/*.py freshpoint_probe.py freshpoint_mqtt_bridge.py
+        run: python -m py_compile custom_components/freshpoint/*.py freshpoint_probe.py
+
+      - name: Run protocol unit tests
+        run: python -m unittest discover
 
       - name: Validate JSON files
         run: |
