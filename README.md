@@ -194,7 +194,9 @@ Each release has notes in `release_notes/<version>.md`. After a PR is merged int
 `main` (or another push to `main`), the release workflow first runs all validation checks.
 If successful, it reads the manifest version and publishes a matching GitHub Release
 and tag from that exact validated commit, with the notes as the Release body for HACS.
-No manual tag push is needed. The standard `GITHUB_TOKEN` with `contents: write` is
+Publication uses `softprops/action-gh-release@v3`; a short preparation step checks the
+version, notes and existing releases/tags. No custom Python release publisher or manual
+tag push is needed. The standard `GITHUB_TOKEN` with `contents: write` is
 sufficient; no personal access token is required.
 
 For each new version, update `manifest.json`, `CHANGELOG.md` and the corresponding

@@ -25,12 +25,49 @@ jobs:
       contents: write
     steps:
       - name: Check out the validated commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Publish version and release notes
+      - name: Prepare release
+        id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 .github/scripts/publish_release.py
+        shell: bash
+        run: |
+          version="$(jq -er '.version' custom_components/freshpoint/manifest.json)"
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          tag="v$version"
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" > "$RUNNER_TEMP/release.json" 2> "$RUNNER_TEMP/release-error"; then
+            jq -e '.draft == false and .prerelease == false' "$RUNNER_TEMP/release.json"
+            echo "$tag already published; skipping"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! grep -q '(HTTP 404)' "$RUNNER_TEMP/release-error"; then
+            cat "$RUNNER_TEMP/release-error" >&2
+            exit 1
+          fi
+          notes="release_notes/$version.md"
+          test -s "$notes"
+          grep -q '[^[:space:]]' "$notes"
+          if test -n "$(git ls-remote origin "refs/tags/$tag")"; then
+            git fetch --no-tags origin "refs/tags/$tag"
+            test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$GITHUB_SHA"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        if: steps.prepare.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.prepare.outputs.tag }}
+          name: ${{ steps.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body_path: ${{ steps.prepare.outputs.notes }}
+          draft: false
+          prerelease: false
+          make_latest: legacy
