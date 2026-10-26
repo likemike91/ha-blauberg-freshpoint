@@ -1,26 +1,36 @@
-name: Publish release notes
+name: Publish release
 
 "on":
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: freshpoint-release-main
+  cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out tagged version
-        uses: actions/checkout@v4
+  validate:
+    uses: ./.github/workflows/validate.yml
 
-      - name: Verify version and publish GitHub release
+  release:
+    if: github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the validated commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Publish version and release notes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          python3 -c 'import json, sys; assert json.load(open("custom_components/freshpoint/manifest.json"))["version"] == sys.argv[1], "Tag and manifest versions differ"' "$version"
-          notes="release_notes/$version.md"
-          test -s "$notes"
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$notes"
+        run: python3 .github/scripts/publish_release.py
