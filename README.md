@@ -190,11 +190,19 @@ If entities are unavailable:
 
 ## Releases
 
-Each release has notes in `release_notes/<version>.md`. After merging and validating a
-release, push the matching semantic-version tag (for example `v0.3.1`). The release
-workflow checks that the tag matches `manifest.json` and publishes those notes as the
-GitHub Release body for HACS. A changelog file alone does not publish HACS release notes.
-Creating this branch does not publish a release or tag.
+Each release has notes in `release_notes/<version>.md`. After a PR is merged into
+`main` (or another push to `main`), the release workflow first runs all validation checks.
+If successful, it reads the manifest version and publishes a matching GitHub Release
+and tag from that exact validated commit, with the notes as the Release body for HACS.
+No manual tag push is needed. The standard `GITHUB_TOKEN` with `contents: write` is
+sufficient; no personal access token is required.
+
+For each new version, update `manifest.json`, `CHANGELOG.md` and the corresponding
+release notes before merging. Already published versions are skipped. Missing/empty
+notes, invalid versions or conflicting tags fail the release instead of silently
+publishing incorrect content. Existing tags/releases are never overwritten. The workflow
+can also be started manually on `main` to retry publication after correcting a failure.
+A changelog file alone does not publish HACS release notes.
 
 For local tests, install `requirements_test.txt` into a development environment and run
 `python3 -m unittest discover` in addition to the compilation/JSON checks.

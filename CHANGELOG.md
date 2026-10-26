@@ -5,7 +5,7 @@
 - Disable the live device clock by default for new entities, avoiding continuous clock Activity/history updates; existing installations can disable it manually.
 - Add device-level set_datetime and set_current_datetime actions independent of enabled entities.
 - Keep the current-time button on the shared coordinator method without changing its entity identity.
-- Add HACS-facing release notes and a tag-triggered GitHub Release workflow.
+- Add HACS-facing release notes and automatically publish version tags/GitHub Releases after successful validation on main.
 
 ## 0.3.0
 
