@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+- Support fan and fan-group targets for both clock actions while preserving device-ID calls.
+- Deduplicate devices and attempt remaining group members after a write failure, then report combined errors.
+- Preserve disabled live-clock settings.
+
 ## 0.3.1
 
 - Disable the live device clock by default for new entities, avoiding continuous clock Activity/history updates; existing installations can disable it manually.

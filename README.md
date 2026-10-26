@@ -73,17 +73,32 @@ The clock can be set without enabling the live entity or the button:
 
 | Action | Required fields | Behavior |
 | --- | --- | --- |
-| `freshpoint.set_current_datetime` | `device_id`: one device registry ID or a list | Copies Home Assistant's current local date and time |
-| `freshpoint.set_datetime` | `device_id`, `datetime` | Writes a supplied date and time, including the weekday |
+| `freshpoint.set_current_datetime` | Fan/group target (or legacy `device_id`) | Copies Home Assistant's current local date and time |
+| `freshpoint.set_datetime` | Fan/group target (or legacy `device_id`), `datetime` | Writes a supplied date and time, including the weekday |
 
-Use the action picker in an automation or **Developer tools → Actions**. Select one or
-more devices in **Freshpoint devices**; for `set_datetime`, supply **Date and time** as
+Use the action picker in an automation or **Developer tools → Actions**. Select fan
+entities or a fan group under **Target**; for `set_datetime`, supply **Date and time** as
 well (for example `2026-10-26 12:30:00`). Values without a timezone use Home Assistant's
 configured timezone; offset-aware values are converted to that timezone. Supported
-calendar years are 2000-2099 after conversion. There is no implicit default device, and
-all selected devices must be loaded Freshpoint devices. Both actions write the time and
+calendar years are 2000-2099 after conversion. There is no implicit default device. Groups are expanded using Home Assistant's native
+target resolution, including nested groups, areas and labels. Only Freshpoint fan members
+are used; the same physical device is written once. Existing `data.device_id` calls remain
+supported and validate that all explicitly selected devices are loaded Freshpoint devices.
+Empty/unsupported selections fail without writing. All resolved devices are attempted even
+if a device fails, then a combined error is returned. Both actions write the time and
 calendar together. The existing button calls the same internal method as
 `set_current_datetime`; its unique ID remains unchanged.
+
+For example, the action editor can target a group directly:
+
+```yaml
+action: freshpoint.set_current_datetime
+target:
+  entity_id: fan.luftungsgerate
+```
+
+For a chosen date/time, use `freshpoint.set_datetime` with the same target and a
+`data.datetime` field. The group entity ID above is an example; select your own group.
 
 Numeric controls use explicit validated writes, not toggle commands. Filter interval
 accepts 0 or 70-365 days (values 1-69 are rejected); changing the interval may affect the
