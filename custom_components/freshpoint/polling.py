@@ -9,7 +9,7 @@ ENTITY_READS = (
     ("select", "operating_mode", (c.PARAM_DIRECTION,), True),
     ("select", "timer_mode", (c.PARAM_TIMER_MODE,), True),
     ("switch", "heater", (c.PARAM_HEATER_CONTROL,), True),
-    ("datetime", "device_clock", (c.PARAM_RTC_TIME, c.PARAM_RTC_CALENDAR), True),
+    ("datetime", "device_clock", (c.PARAM_RTC_TIME, c.PARAM_RTC_CALENDAR), False),
     ("sensor", "outdoor_temperature", (c.PARAM_OUTDOOR_TEMPERATURE,), True),
     ("sensor", "supply_temperature", (c.PARAM_SUPPLY_TEMPERATURE,), True),
     ("sensor", "extract_inlet_temperature", (c.PARAM_EXTRACT_INLET_TEMPERATURE,), True),
