@@ -10,6 +10,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .entity import FreshpointSettingEntity
+from .settings import SETTINGS
 from .coordinator import FreshpointCoordinator
 
 DIRECTION_TO_OPTION = {
@@ -37,8 +39,12 @@ async def async_setup_entry(
     entities = []
     for coordinator in coordinators:
         entities.append(FreshpointOperatingModeSelect(coordinator))
-        if coordinator.data.timer_mode is not None:
-            entities.append(FreshpointTimerModeSelect(coordinator))
+        entities.append(FreshpointTimerModeSelect(coordinator))
+    entities.extend(
+        FreshpointSettingSelect(coordinator, setting)
+        for coordinator in coordinators
+        for setting in SETTINGS if setting.platform == "select"
+    )
     async_add_entities(entities)
 
 
@@ -106,3 +112,21 @@ class FreshpointTimerModeSelect(CoordinatorEntity[FreshpointCoordinator], Select
         except KeyError as exc:
             raise ValueError(f"unsupported Freshpoint timer mode {option}") from exc
         await self.coordinator.async_set_timer_mode(timer_mode)
+
+
+class FreshpointSettingSelect(FreshpointSettingEntity, SelectEntity):
+    """Select a documented option without exposing toggle command codes."""
+
+    def __init__(self, coordinator, setting) -> None:
+        super().__init__(coordinator, setting)
+        self._attr_options = [option for _, option in setting.options]
+
+    @property
+    def current_option(self) -> str | None:
+        return dict(self.setting.options).get(self.setting_value)
+
+    async def async_select_option(self, option: str) -> None:
+        reverse = {option: value for value, option in self.setting.options}
+        if option not in reverse:
+            raise ValueError(f"Unsupported option {option}")
+        await self.coordinator.async_set_setting(self.setting.key, reverse[option])

@@ -54,6 +54,9 @@ class FreshpointFan(CoordinatorEntity[FreshpointCoordinator], FanEntity):
     @property
     def percentage(self) -> int | None:
         """Return current percentage."""
+        # Parameter 68 remains the manual setpoint even while a preset is active.
+        if self.coordinator.data.speed_mode != 255:
+            return None
         return self.coordinator.data.percentage
 
     async def async_turn_on(

@@ -16,6 +16,8 @@ Home Assistant custom integration for local control of Blauberg Freshpoint venti
 - Optional CO2 and VOC/air-quality sensors on models that report them
 - Supply and extract fan RPM sensors
 - Filter status, remaining-time sensor, and filter-timer reset button
+- Editable device date and time (years 2000-2099)
+- Set current time button (copies Home Assistant local time and date to each unit)
 - Motor runtime sensor
 - Alarm/warning and frost-protection status
 - Rotation direction sensor
@@ -25,13 +27,76 @@ Home Assistant custom integration for local control of Blauberg Freshpoint venti
 Temperature support follows the device protocol: values are reported in 0.1 degrees Celsius.
 If a model does not have a documented temperature sensor, that entity reports no value.
 
-## Other Protocol Capabilities
+## Controls and Defaults
 
-The Freshpoint Smart Home protocol additionally documents humidity/CO2/VOC automation thresholds,
-weekly scheduling, adjustable timer durations, speed-profile tuning, alarm reset, and display
-settings. Wi-Fi credentials, factory reset, RTC/schedule editing, and display configuration are
-intentionally not exposed. Those controls are security-sensitive, destructive, or better handled
-by the Blauberg app until their behavior is verified on real hardware.
+| Controls | Category | Enabled by default |
+| --- | --- | --- |
+| Fan power, manual percentage, speed modes 1-5/manual, airflow mode, night/turbo mode | Normal | Yes |
+| Humidity/CO2/VOC automatic control and thresholds | Configuration | Yes |
+| Night/turbo duration, filter replacement interval | Configuration | Yes |
+| Weekly schedule enable, cloud permission | Configuration | Yes |
+| Display brightness, sound, backlight, displayed values, standby clock, off interval | Configuration | Yes |
+| Editable device date/time and set-current-time button | Configuration | Yes |
+| Room climate and timer countdown | Normal | Yes |
+| Filter countdown/change, fault status, alarm codes/count and frost protection | Diagnostic | Yes |
+| RPM, runtime, efficiency, raw direction/filter status and device type | Diagnostic | No |
+| RTC battery voltage, firmware/build date, current IP and Wi-Fi channel | Diagnostic | No |
+| Device-reported humidity/CO2/VOC threshold flags | Diagnostic | No |
+
+Defaults apply to new entities; existing registry preferences are preserved. Disabled
+entities do not cause parameter reads, including at startup. Shared parameters are read
+while any enabled entity needs them. If all read-dependent entities are disabled, no
+state-read UDP request is sent. Discovery and explicit commands are separate from polling.
+Optional entities are registered even without a value, so they can be enabled later;
+unsupported fields remain unknown. Stable diagnostics (RTC voltage, firmware, current IP
+and Wi-Fi channel) are fetched at most once per hour while enabled; other enabled fields
+use the normal 20-second polling interval. Network rediscovery invalidates that cache.
+
+The **Device date and time** configuration entity displays and writes RTC parameters 111
+and 112 in Home Assistant's timezone. Years 2000-2099 are supported. The device stores
+no timezone/DST flag, so repeated wall times cannot be distinguished. The **Set current
+time** button copies Home Assistant's current local clock and calendar. Neither control
+synchronizes automatically; press again after a DST change or use a Home Assistant
+automation. Changing the clock can affect an existing device schedule.
+
+Numeric controls use explicit validated writes, not toggle commands. Filter interval
+accepts 0 or 70-365 days (values 1-69 are rejected); changing the interval may affect the
+current countdown. Timer durations use minutes, conservatively limited to 0-1439
+(23:59); larger durations have not been verified. Display off times have minute precision.
+Display brightness is the manual brightness setpoint; select manual backlight mode to use
+it. New controls check write acknowledgements before refreshing enabled entity values.
+
+Enabling the device's automatic control or weekly program can change airflow immediately.
+The percentage entity reports the manual setpoint only in manual speed mode; preset mode
+is shown by the separate speed-mode select. The timer and device automatics can override
+manual behavior. Cloud permission changes do not require a cloud connection from this
+integration.
+
+Alarm details expose a count plus an `alarms` attribute containing numeric codes and
+alarm/warning severity. Code descriptions are not guessed. Firmware exposes a build-date
+attribute. Air-quality flags are device-reported; when the corresponding automatic
+control is off they may remain normal even when the measured value exceeds the threshold.
+
+## Verification and Remaining Capabilities
+
+Read support for the newly exposed fields was verified on a Freshpoint 160 (firmware
+0.12). Hardware write testing and Home Assistant runtime testing of the new controls are
+still pending. In particular, verify display behavior and filter/timer side effects before
+using these controls in automations.
+
+The English manufacturer manual uses zero-based display codes for parameters 1025, 1026
+and 1031. These agree with the observed device reads; the Polish edition differs. The
+CO2 threshold is encoded with two bytes, as documented in the Polish edition and observed
+on hardware; the English table incorrectly lists one byte for its 400-2000 ppm range.
+
+Weekly schedule editing (119), speed-profile tuning (58-63), schedule-stage diagnostics
+(774) and alarm reset (128) remain deferred until their behavior and UI are verified.
+Wi-Fi reconfiguration, reading passwords and destructive factory/profile resets are
+intentionally excluded. Passwords are used only for local device authentication.
+
+Protocol references:
+[English Freshpoint manufacturer manual](https://manuals.plus/m/bc5e11d73fd4b238edb650179ccd01f392bc33b5c9bd595439141b22028a2d5e.pdf),
+[Polish Freshpoint manufacturer manual](https://blauberg24.pl/userdata/public/assets/FRESHPOINT_Podlaczenie_do_systemu-_Inteligentny-_dom.pdf).
 
 ## Installation With HACS
 

@@ -62,11 +62,23 @@
       },
       "problem": {
         "name": "Problem"
+      },
+      "humidity_threshold_exceeded": {
+        "name": "Humidity threshold exceeded"
+      },
+      "co2_threshold_exceeded": {
+        "name": "CO2 threshold exceeded"
+      },
+      "voc_threshold_exceeded": {
+        "name": "VOC threshold exceeded"
       }
     },
     "button": {
       "filter_reset": {
         "name": "Reset filter timer"
+      },
+      "set_current_time": {
+        "name": "Set current time"
       }
     },
     "fan": {
@@ -90,6 +102,56 @@
           "off": "Off",
           "night": "Night",
           "turbo": "Turbo"
+        }
+      },
+      "speed_mode": {
+        "name": "Fan speed mode",
+        "state": {
+          "speed_1": "Speed 1",
+          "speed_2": "Speed 2",
+          "speed_3": "Speed 3",
+          "speed_4": "Speed 4",
+          "speed_5": "Speed 5",
+          "manual": "Manual"
+        }
+      },
+      "backlight_mode": {
+        "name": "Backlight mode",
+        "state": {
+          "auto": "Automatic",
+          "manual": "Manual"
+        }
+      },
+      "display_temperature": {
+        "name": "Displayed temperature",
+        "state": {
+          "alternating": "Alternating",
+          "supply": "Supply air",
+          "extract": "Extract air"
+        }
+      },
+      "display_air_quality": {
+        "name": "Displayed air quality",
+        "state": {
+          "alternating": "Alternating",
+          "co2": "CO2",
+          "voc": "VOC"
+        }
+      },
+      "display_content": {
+        "name": "Display content",
+        "state": {
+          "alternating": "Alternating",
+          "time": "Time",
+          "temperature_humidity": "Temperature and humidity"
+        }
+      },
+      "display_mode": {
+        "name": "Display mode",
+        "state": {
+          "off": "Off",
+          "on": "On",
+          "scheduled_off": "Scheduled off"
         }
       }
     },
@@ -147,11 +209,86 @@
       },
       "device_type": {
         "name": "Device type"
+      },
+      "timer_remaining": {
+        "name": "Timer remaining"
+      },
+      "rtc_battery": {
+        "name": "Clock battery voltage"
+      },
+      "alarm_details": {
+        "name": "Active alarm and warning count"
+      },
+      "firmware": {
+        "name": "Firmware version"
+      },
+      "wifi_channel": {
+        "name": "Wi-Fi channel"
+      },
+      "current_ip": {
+        "name": "Current IP address"
       }
     },
     "switch": {
       "heater": {
         "name": "Heater"
+      },
+      "humidity_auto": {
+        "name": "Humidity automatic control"
+      },
+      "co2_auto": {
+        "name": "CO2 automatic control"
+      },
+      "weekly_schedule": {
+        "name": "Weekly schedule"
+      },
+      "cloud": {
+        "name": "Cloud connection permission"
+      },
+      "voc_auto": {
+        "name": "VOC automatic control"
+      },
+      "sound": {
+        "name": "Confirmation sound"
+      },
+      "standby_clock": {
+        "name": "Standby clock display"
+      }
+    },
+    "datetime": {
+      "device_clock": {
+        "name": "Device date and time"
+      }
+    },
+    "number": {
+      "humidity_threshold": {
+        "name": "Humidity threshold"
+      },
+      "co2_threshold": {
+        "name": "CO2 threshold"
+      },
+      "filter_interval": {
+        "name": "Filter replacement interval"
+      },
+      "night_duration": {
+        "name": "Night timer duration"
+      },
+      "turbo_duration": {
+        "name": "Turbo timer duration"
+      },
+      "voc_threshold": {
+        "name": "VOC threshold"
+      },
+      "display_brightness": {
+        "name": "Display brightness"
+      }
+    },
+    "time": {
+      "display_off_start": {
+        "name": "Display off from"
+      },
+      "display_off_end": {
+        "name": "Display off until"
       }
     }
   }

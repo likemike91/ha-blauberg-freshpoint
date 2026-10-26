@@ -26,10 +26,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up Freshpoint buttons."""
     coordinators: list[FreshpointCoordinator] = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities(FreshpointSetTimeButton(coordinator) for coordinator in coordinators)
     async_add_entities(
         FreshpointFilterResetButton(coordinator)
         for coordinator in coordinators
-        if coordinator.data.filter_status is not None
     )
 
 
@@ -55,3 +55,22 @@ class FreshpointFilterResetButton(
     async def async_press(self) -> None:
         """Reset the filter countdown."""
         await self.coordinator.async_reset_filter()
+
+
+class FreshpointSetTimeButton(FreshpointFilterResetButton):
+    """Synchronize a unit's clock with Home Assistant local time."""
+
+    entity_description = ButtonEntityDescription(
+        key="set_current_time",
+        translation_key="set_current_time",
+        entity_category=EntityCategory.CONFIG,
+        icon="mdi:clock-check-outline",
+    )
+
+    def __init__(self, coordinator: FreshpointCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.device['controller_id']}_set_current_time"
+
+    async def async_press(self) -> None:
+        """Set the current local time and calendar."""
+        await self.coordinator.async_set_current_time()

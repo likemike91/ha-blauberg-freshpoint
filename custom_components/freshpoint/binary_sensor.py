@@ -18,7 +18,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FreshpointCoordinator
-from .protocol import FreshpointState
+from .protocol import FreshpointState, decode_air_quality_flag
+from .polling import ENTITY_READS
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -26,7 +27,6 @@ class FreshpointBinarySensorDescription(BinarySensorEntityDescription):
     """Describe a Freshpoint binary sensor."""
 
     value_fn: Callable[[FreshpointState], bool | None]
-    supported_fn: Callable[[FreshpointState], bool] = lambda _state: True
 
 
 BINARY_SENSORS = (
@@ -38,7 +38,6 @@ BINARY_SENSORS = (
         value_fn=lambda state: None
         if state.filter_status is None
         else state.filter_status == 1,
-        supported_fn=lambda state: state.filter_status is not None,
     ),
     FreshpointBinarySensorDescription(
         key="heater_active",
@@ -47,16 +46,15 @@ BINARY_SENSORS = (
         value_fn=lambda state: None
         if state.heater_status is None
         else state.heater_status == 1,
-        supported_fn=lambda state: state.heater_status is not None,
     ),
     FreshpointBinarySensorDescription(
         key="frost_protection",
+        entity_category=EntityCategory.DIAGNOSTIC,
         translation_key="frost_protection",
         device_class=BinarySensorDeviceClass.RUNNING,
         value_fn=lambda state: None
         if state.frost_protection is None
         else state.frost_protection == 1,
-        supported_fn=lambda state: state.frost_protection is not None,
     ),
     FreshpointBinarySensorDescription(
         key="problem",
@@ -66,8 +64,21 @@ BINARY_SENSORS = (
         value_fn=lambda state: None
         if state.fault_warning is None
         else state.fault_warning != 0,
-        supported_fn=lambda state: state.fault_warning is not None,
     ),
+)
+
+
+BINARY_SENSORS += tuple(
+    FreshpointBinarySensorDescription(
+        key=key, translation_key=key,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda state, index=index: decode_air_quality_flag(state.values.get(132), index),
+    )
+    for key, index in (
+        ("humidity_threshold_exceeded", 0),
+        ("co2_threshold_exceeded", 1),
+        ("voc_threshold_exceeded", 4),
+    )
 )
 
 
@@ -82,7 +93,6 @@ async def async_setup_entry(
         FreshpointBinarySensor(coordinator, description)
         for coordinator in coordinators
         for description in BINARY_SENSORS
-        if description.supported_fn(coordinator.data)
     )
 
 
@@ -101,6 +111,10 @@ class FreshpointBinarySensor(
         super().__init__(coordinator)
         device = coordinator.device
         self.entity_description = description
+        self._attr_entity_registry_enabled_default = next(
+            default for platform, key, _, default in ENTITY_READS
+            if platform == "binary_sensor" and key == description.key
+        )
         self._attr_unique_id = f"{device['controller_id']}_{description.key}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device["controller_id"])},
