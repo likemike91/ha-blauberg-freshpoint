@@ -1,99 +1,127 @@
-"""Verify release publishing decisions without contacting GitHub."""
+"""Check the release workflow and its small preparation step without networking."""
 
-import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
 
 import yaml
 
 ROOT = Path(__file__).parents[1]
-spec = importlib.util.spec_from_file_location("publish_release", ROOT / ".github/scripts/publish_release.py")
-release = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
     def setUp(self):
+        self.workflow = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())
+        self.steps = self.workflow['jobs']['release']['steps']
+        self.prepare = next(step for step in self.steps if step.get('id') == 'prepare')
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        manifest = self.root / "custom_components/freshpoint/manifest.json"
+        manifest = self.root / 'custom_components/freshpoint/manifest.json'
         manifest.parent.mkdir(parents=True)
-        manifest.write_text(json.dumps({"version": "0.3.1"}))
-        notes = self.root / "release_notes/0.3.1.md"
+        manifest.write_text(json.dumps({'version': '0.3.1'}))
+        notes = self.root / 'release_notes/0.3.1.md'
         notes.parent.mkdir()
-        notes.write_text("Release notes for HACS")
-        self.calls = []
-        self.responses = {}
-        self.env = patch.dict(os.environ, {"GITHUB_REF": "refs/heads/main", "GITHUB_SHA": "a" * 40})
-        self.env.start()
-        self.addCleanup(self.env.stop)
+        notes.write_text('Release notes for HACS')
+        binaries = self.root / 'bin'
+        binaries.mkdir()
+        (binaries / 'gh').write_text('''#!/bin/sh
+case "$TEST_RELEASE" in
+  existing) printf '{"draft":false,"prerelease":false}';;
+  draft) printf '{"draft":true,"prerelease":false}';;
+  forbidden) echo '(HTTP 403)' >&2; exit 1;;
+  *) echo '(HTTP 404)' >&2; exit 1;;
+esac
+''')
+        (binaries / 'git').write_text('''#!/bin/sh
+case "$1" in
+  ls-remote) test -z "$TEST_TAG_SHA" || echo "$TEST_TAG_SHA refs/tags/v0.3.1"; exit 0;;
+  fetch) exit 0;;
+  rev-parse) echo "$TEST_TAG_SHA";;
+  *) exit 1;;
+esac
+''')
+        for binary in binaries.iterdir():
+            binary.chmod(0o755)
+        self.env = {
+            **os.environ,
+            'PATH': str(binaries) + os.pathsep + os.environ['PATH'],
+            'GITHUB_REPOSITORY': 'example/repo',
+            'GITHUB_SHA': 'a' * 40,
+            'GITHUB_OUTPUT': str(self.root / 'output'),
+            'RUNNER_TEMP': str(self.root),
+            'TEST_RELEASE': 'missing',
+            'TEST_TAG_SHA': '',
+        }
 
-    def api(self, method, path, payload=None):
-        self.calls.append((method, path, payload))
-        if method == "POST":
-            return {"html_url": "https://github.com/example/repo/releases/tag/v0.3.1"}
-        return self.responses.get(path)
+    def run_prepare(self, **overrides):
+        return subprocess.run(
+            ['bash', '-e', '-o', 'pipefail', '-c', self.prepare['run']],
+            cwd=self.root, env={**self.env, **overrides}, capture_output=True, text=True,
+        )
 
-    def test_first_release_creates_tag_at_validated_commit(self):
-        release.publish(self.root, self.api)
-        payload = self.calls[-1][2]
-        self.assertEqual(payload["tag_name"], "v0.3.1")
-        self.assertEqual(payload["target_commitish"], "a" * 40)
-        self.assertEqual(payload["body"], "Release notes for HACS")
-        self.assertFalse(payload["draft"])
-        self.assertFalse(payload["prerelease"])
+    def output(self):
+        path = self.root / 'output'
+        return path.read_text() if path.exists() else ''
 
-    def test_existing_release_skips_without_changes(self):
-        self.responses["releases/tags/v0.3.1"] = {"draft": False, "prerelease": False}
-        release.publish(self.root, self.api)
-        self.assertEqual(len(self.calls), 1)
-        self.assertEqual(self.calls[0][0], "GET")
+    def test_new_release_passes_version_and_notes_to_action(self):
+        result = self.run_prepare()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.output(), 'tag=v0.3.1\nnotes=release_notes/0.3.1.md\npublish=true\n')
 
-    def test_conflicting_tag_fails_without_mutation(self):
-        self.responses["git/ref/tags/v0.3.1"] = {"object": {"type": "commit", "sha": "b" * 40}}
-        with self.assertRaisesRegex(ValueError, "different commit"):
-            release.publish(self.root, self.api)
-        self.assertTrue(all(method == "GET" for method, _, _ in self.calls))
+    def test_existing_release_is_not_updated(self):
+        result = self.run_prepare(TEST_RELEASE='existing')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.output(), 'publish=false\n')
 
-    def test_annotated_tag_at_same_commit_can_be_released(self):
-        self.responses["git/ref/tags/v0.3.1"] = {"object": {"type": "tag", "sha": "b" * 40}}
-        self.responses["git/tags/" + "b" * 40] = {"object": {"type": "commit", "sha": "a" * 40}}
-        release.publish(self.root, self.api)
-        self.assertEqual(self.calls[-1][0], "POST")
+    def test_api_failure_does_not_mean_missing_release(self):
+        self.assertNotEqual(self.run_prepare(TEST_RELEASE='forbidden').returncode, 0)
+        self.assertNotIn('publish=true', self.output())
 
-    def test_missing_or_empty_notes_block_release(self):
-        notes = self.root / "release_notes/0.3.1.md"
+    def test_draft_is_not_silently_published(self):
+        self.assertNotEqual(self.run_prepare(TEST_RELEASE='draft').returncode, 0)
+        self.assertNotIn('publish=true', self.output())
+
+    def test_conflicting_tag_is_rejected(self):
+        self.assertNotEqual(self.run_prepare(TEST_TAG_SHA='b' * 40).returncode, 0)
+        self.assertNotIn('publish=true', self.output())
+
+    def test_existing_tag_at_validated_commit_is_accepted(self):
+        result = self.run_prepare(TEST_TAG_SHA='a' * 40)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('publish=true', self.output())
+
+    def test_missing_or_empty_notes_fail(self):
+        notes = self.root / 'release_notes/0.3.1.md'
         notes.unlink()
-        with self.assertRaises(FileNotFoundError):
-            release.publish(self.root, self.api)
-        notes.write_text(" \n")
-        with self.assertRaisesRegex(ValueError, "empty"):
-            release.publish(self.root, self.api)
-        self.assertTrue(all(method == "GET" for method, _, _ in self.calls))
+        self.assertNotEqual(self.run_prepare().returncode, 0)
+        notes.write_text(' \n')
+        self.assertNotEqual(self.run_prepare().returncode, 0)
+        self.assertNotIn('publish=true', self.output())
 
-    def test_non_main_and_invalid_versions_fail(self):
-        with patch.dict(os.environ, {"GITHUB_REF": "refs/heads/feature"}):
-            with self.assertRaisesRegex(ValueError, "main"):
-                release.publish(self.root, self.api)
-        manifest = self.root / "custom_components/freshpoint/manifest.json"
-        for version in ("../notes", "0.3.1beta", "01.2.3"):
-            manifest.write_text(json.dumps({"version": version}))
-            with self.assertRaises(ValueError):
-                release.publish(self.root, self.api)
-        self.assertEqual(self.calls, [])
+    def test_invalid_version_fails_before_api_calls(self):
+        manifest = self.root / 'custom_components/freshpoint/manifest.json'
+        for value in ('../notes', '0.3.1beta', '01.2.3'):
+            manifest.write_text(json.dumps({'version': value}))
+            self.assertNotEqual(self.run_prepare().returncode, 0)
+        self.assertNotIn('publish=true', self.output())
 
-    def test_workflow_gates_release_on_validation(self):
-        workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
-        self.assertEqual(workflow["on"]["push"]["branches"], ["main"])
-        self.assertEqual(workflow["jobs"]["release"]["needs"], "validate")
-        self.assertEqual(workflow["jobs"]["validate"]["uses"], "./.github/workflows/validate.yml")
-        validation = yaml.safe_load((ROOT / ".github/workflows/validate.yml").read_text())
-        self.assertIn("workflow_call", validation["on"])
-        checkout = workflow["jobs"]["release"]["steps"][0]
-        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
-        self.assertFalse(checkout["with"]["persist-credentials"])
+    def test_publication_is_gated_and_uses_prebuilt_action(self):
+        job = self.workflow['jobs']['release']
+        self.assertEqual(job['needs'], 'validate')
+        self.assertEqual(job['if'], "github.ref == 'refs/heads/main'")
+        self.assertEqual(job['runs-on'], 'ubuntu-latest')
+        publish = self.steps[-1]
+        self.assertEqual(publish['uses'], 'softprops/action-gh-release@v3')
+        self.assertEqual(publish['if'], "steps.prepare.outputs.publish == 'true'")
+        self.assertEqual(publish['with']['target_commitish'], '${{ github.sha }}')
+        self.assertEqual(publish['with']['body_path'], '${{ steps.prepare.outputs.notes }}')
+        validation = yaml.safe_load((ROOT / '.github/workflows/validate.yml').read_text())
+        self.assertIn('workflow_call', validation['on'])
+        self.assertEqual(validation['jobs']['validate']['runs-on'], 'ubuntu-latest')
+        uses = [step.get('uses') for step in validation['jobs']['validate']['steps']]
+        self.assertIn('actions/checkout@v7', uses)
+        self.assertIn('actions/setup-python@v7', uses)
