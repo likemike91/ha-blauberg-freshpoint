@@ -9,10 +9,12 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, Sen
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_NAME,
+    EntityCategory,
     PERCENTAGE,
     UnitOfRatio,
     UnitOfTemperature,
     UnitOfTime,
+    UnitOfElectricPotential,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -20,7 +22,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FreshpointCoordinator
-from .protocol import FreshpointState
+from .protocol import FreshpointState, decode_timer_seconds, decode_alarms, decode_firmware
+from .polling import ENTITY_READS
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -28,7 +31,6 @@ class FreshpointSensorDescription(SensorEntityDescription):
     """Describes a Freshpoint sensor."""
 
     value_fn: Callable[[FreshpointState], int | float | str | None]
-    supported_fn: Callable[[FreshpointState], bool] = lambda _state: True
 
 
 SENSORS: tuple[FreshpointSensorDescription, ...] = (
@@ -83,7 +85,6 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
         device_class=SensorDeviceClass.CO2,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda state: state.co2,
-        supported_fn=lambda state: state.co2 is not None,
     ),
     FreshpointSensorDescription(
         key="voc",
@@ -91,7 +92,6 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
         device_class=SensorDeviceClass.AQI,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda state: state.voc,
-        supported_fn=lambda state: state.voc is not None,
     ),
     FreshpointSensorDescription(
         key="supply_rpm",
@@ -120,7 +120,6 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=lambda state: state.filter_countdown_hours,
-        supported_fn=lambda state: state.filter_countdown_hours is not None,
     ),
     FreshpointSensorDescription(
         key="motor_runtime",
@@ -130,7 +129,6 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         suggested_display_precision=1,
         value_fn=lambda state: state.motor_runtime_hours,
-        supported_fn=lambda state: state.motor_runtime_hours is not None,
     ),
     FreshpointSensorDescription(
         key="fault_warning",
@@ -142,7 +140,6 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
             1: "alarm",
             2: "warning",
         }.get(state.fault_warning, "unknown"),
-        supported_fn=lambda state: state.fault_warning is not None,
     ),
     FreshpointSensorDescription(
         key="direction",
@@ -164,6 +161,47 @@ SENSORS: tuple[FreshpointSensorDescription, ...] = (
 )
 
 
+SENSORS += (
+    FreshpointSensorDescription(
+        key="wifi_channel", translation_key="wifi_channel",
+        value_fn=lambda state: state.values.get(154),
+    ),
+    FreshpointSensorDescription(
+        key="current_ip", translation_key="current_ip",
+        value_fn=lambda state: (
+            ".".join(str(part) for part in value.to_bytes(4, "little"))
+            if isinstance((value := state.values.get(163)), int) and 0 <= value < 1 << 32
+            else None
+        ),
+    ),
+    FreshpointSensorDescription(
+        key="timer_remaining", translation_key="timer_remaining",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        value_fn=lambda state: decode_timer_seconds(state.values.get(11)),
+    ),
+    FreshpointSensorDescription(
+        key="rtc_battery", translation_key="rtc_battery",
+        device_class=SensorDeviceClass.VOLTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfElectricPotential.MILLIVOLT,
+        value_fn=lambda state: state.values.get(36),
+    ),
+    FreshpointSensorDescription(
+        key="alarm_details", translation_key="alarm_details",
+        value_fn=lambda state: (
+            len(alarms) if (alarms := decode_alarms(state.values.get(127))) is not None else None
+        ),
+    ),
+    FreshpointSensorDescription(
+        key="firmware", translation_key="firmware",
+        value_fn=lambda state: (
+            firmware[0] if (firmware := decode_firmware(state.values.get(134))) else None
+        ),
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -175,7 +213,6 @@ async def async_setup_entry(
         FreshpointSensor(coordinator, description)
         for coordinator in coordinators
         for description in SENSORS
-        if description.supported_fn(coordinator.data)
     )
 
 
@@ -192,6 +229,14 @@ class FreshpointSensor(CoordinatorEntity[FreshpointCoordinator], SensorEntity):
         super().__init__(coordinator)
         device = coordinator.device
         self.entity_description = description
+        defaults = {suffix: default for platform, suffix, _, default in ENTITY_READS if platform == "sensor"}
+        self._attr_entity_registry_enabled_default = defaults[description.key]
+        if description.key in {
+            "supply_rpm", "extract_rpm", "filter_status", "filter_countdown",
+            "motor_runtime", "fault_warning", "direction", "recovery_efficiency", "device_type",
+            "rtc_battery", "alarm_details", "firmware", "wifi_channel", "current_ip",
+        }:
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_unique_id = f"{device['controller_id']}_{description.key}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device["controller_id"])},
@@ -204,3 +249,14 @@ class FreshpointSensor(CoordinatorEntity[FreshpointCoordinator], SensorEntity):
     def native_value(self) -> int | float | str | None:
         """Return the sensor value."""
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        """Expose documented alarm codes and firmware build date."""
+        if self.entity_description.key == "alarm_details":
+            alarms = decode_alarms(self.coordinator.data.values.get(127))
+            return {"alarms": alarms} if alarms is not None else None
+        if self.entity_description.key == "firmware":
+            firmware = decode_firmware(self.coordinator.data.values.get(134))
+            return {"build_date": firmware[1]} if firmware else None
+        return None
