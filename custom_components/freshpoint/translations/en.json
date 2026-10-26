@@ -291,5 +291,31 @@
         "name": "Display off until"
       }
     }
+  },
+  "services": {
+    "set_datetime": {
+      "name": "Set device date and time",
+      "description": "Set the clock and calendar on selected devices, including when the date/time entity is disabled. Uses Home Assistant's timezone. May affect a running schedule.",
+      "fields": {
+        "device_id": {
+          "name": "Freshpoint devices",
+          "description": "Select one or more loaded Freshpoint devices."
+        },
+        "datetime": {
+          "name": "Date and time",
+          "description": "Date and time in Home Assistant local time, or with an explicit timezone offset. Years 2000-2099."
+        }
+      }
+    },
+    "set_current_datetime": {
+      "name": "Set current device date and time",
+      "description": "Copy Home Assistant's current local date and time to selected devices, including when the date/time entity is disabled. May affect a running schedule.",
+      "fields": {
+        "device_id": {
+          "name": "Freshpoint devices",
+          "description": "Select one or more loaded Freshpoint devices."
+        }
+      }
+    }
   }
 }

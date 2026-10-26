@@ -35,6 +35,7 @@ class FreshpointDateTime(CoordinatorEntity[FreshpointCoordinator], DateTimeEntit
     _attr_has_entity_name = True
     _attr_translation_key = "device_clock"
     _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: FreshpointCoordinator) -> None:
         super().__init__(coordinator)

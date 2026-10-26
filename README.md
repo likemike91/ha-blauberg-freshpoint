@@ -36,7 +36,8 @@ If a model does not have a documented temperature sensor, that entity reports no
 | Night/turbo duration, filter replacement interval | Configuration | Yes |
 | Weekly schedule enable, cloud permission | Configuration | Yes |
 | Display brightness, sound, backlight, displayed values, standby clock, off interval | Configuration | Yes |
-| Editable device date/time and set-current-time button | Configuration | Yes |
+| Editable live device date/time | Configuration | No |
+| Set-current-time button | Configuration | Yes |
 | Room climate and timer countdown | Normal | Yes |
 | Filter countdown/change, fault status, alarm codes/count and frost protection | Diagnostic | Yes |
 | RPM, runtime, efficiency, raw direction/filter status and device type | Diagnostic | No |
@@ -58,6 +59,31 @@ no timezone/DST flag, so repeated wall times cannot be distinguished. The **Set 
 time** button copies Home Assistant's current local clock and calendar. Neither control
 synchronizes automatically; press again after a DST change or use a Home Assistant
 automation. Changing the clock can affect an existing device schedule.
+
+### Clock actions and history
+
+The live **Device date and time** entity is disabled by default for new devices. When
+disabled, RTC parameters 111/112 are not polled and no continuous clock changes are
+published to Activity/Recorder. Existing entity preferences are preserved: if upgrading
+from 0.3.0, disable **Device date and time** in each device's entity settings to stop its
+updates. Existing history is not deleted. Enabling it again resumes live readings and
+regular Activity/Recorder entries; the integration does not modify global history filters.
+
+The clock can be set without enabling the live entity or the button:
+
+| Action | Required fields | Behavior |
+| --- | --- | --- |
+| `freshpoint.set_current_datetime` | `device_id`: one device registry ID or a list | Copies Home Assistant's current local date and time |
+| `freshpoint.set_datetime` | `device_id`, `datetime` | Writes a supplied date and time, including the weekday |
+
+Use the action picker in an automation or **Developer tools → Actions**. Select one or
+more devices in **Freshpoint devices**; for `set_datetime`, supply **Date and time** as
+well (for example `2026-10-26 12:30:00`). Values without a timezone use Home Assistant's
+configured timezone; offset-aware values are converted to that timezone. Supported
+calendar years are 2000-2099 after conversion. There is no implicit default device, and
+all selected devices must be loaded Freshpoint devices. Both actions write the time and
+calendar together. The existing button calls the same internal method as
+`set_current_datetime`; its unique ID remains unchanged.
 
 Numeric controls use explicit validated writes, not toggle commands. Filter interval
 accepts 0 or 70-365 days (values 1-69 are rejected); changing the interval may affect the
@@ -161,3 +187,14 @@ If entities are unavailable:
 - Confirm the Freshpoint IP addresses did not change.
 - Assign static DHCP leases for the Freshpoint units in your router.
 - Restart Home Assistant after changing network settings.
+
+## Releases
+
+Each release has notes in `release_notes/<version>.md`. After merging and validating a
+release, push the matching semantic-version tag (for example `v0.3.1`). The release
+workflow checks that the tag matches `manifest.json` and publishes those notes as the
+GitHub Release body for HACS. A changelog file alone does not publish HACS release notes.
+Creating this branch does not publish a release or tag.
+
+For local tests, install `requirements_test.txt` into a development environment and run
+`python3 -m unittest discover` in addition to the compilation/JSON checks.

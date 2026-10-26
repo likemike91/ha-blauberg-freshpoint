@@ -6,7 +6,8 @@ from pathlib import Path
 import sys
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
+from datetime import datetime, timezone
 
 from .test_protocol import protocol
 from custom_components.freshpoint.polling import ENTITY_READS
@@ -133,3 +134,24 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
             return [protocol.FreshpointDiscoveryResult("192.0.2.1", "unit", 17)]
         with patch.object(self.module, "discover_freshpoints", discover):
             self.assertTrue(await self.coordinator._async_rediscover_host())
+
+
+    async def test_current_clock_action_works_without_clock_polling(self):
+        now = datetime(2026, 10, 26, 10, 30, tzinfo=timezone.utc)
+        self.coordinator.client.set_datetime = Mock()
+        self.coordinator.async_request_refresh = AsyncMock()
+        with patch.object(self.module.dt_util, "now", return_value=now, create=True):
+            await self.coordinator.async_set_current_datetime()
+        self.coordinator.client.set_datetime.assert_called_once_with(now)
+        self.coordinator.async_request_refresh.assert_awaited_once_with()
+        await self.coordinator._async_update_data()
+        self.assertEqual(self.calls, [])
+
+    async def test_supplied_datetime_uses_same_device_write(self):
+        value = datetime(2026, 10, 26, 10, 30, tzinfo=timezone.utc)
+        self.coordinator.client.set_datetime = Mock()
+        self.coordinator.async_request_refresh = AsyncMock()
+        with patch.object(self.module.dt_util, "as_local", side_effect=lambda v: v, create=True):
+            await self.coordinator.async_set_datetime(value)
+        self.coordinator.client.set_datetime.assert_called_once_with(value)
+        self.coordinator.async_request_refresh.assert_awaited_once_with()

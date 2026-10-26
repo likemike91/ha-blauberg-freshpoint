@@ -200,7 +200,8 @@ class PollingTests(unittest.TestCase):
         self.assertNotIn(const.PARAM_MOTOR_RUNTIME, self.params())
         self.assertNotIn(const.PARAM_SUPPLY_RPM, self.params())
         self.assertIn(const.PARAM_HUMIDITY, self.params())
-        self.assertIn(const.PARAM_RTC_CALENDAR, self.params())
+        self.assertNotIn(const.PARAM_RTC_CALENDAR, self.params())
+        self.assertNotIn(const.PARAM_RTC_TIME, self.params())
 
     def test_device_preferences_are_independent(self):
         self.enable("sensor", "humidity")
