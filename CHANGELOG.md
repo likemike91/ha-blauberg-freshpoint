@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0
+
+- Added fan speed-mode selection, humidity/CO2/VOC automatic controls and thresholds.
+- Added night/turbo duration, timer countdown, filter interval, weekly-schedule enable and cloud permission.
+- Added display brightness, content, sound, backlight, standby clock and off-interval controls.
+- Added alarm codes/count, firmware, RTC battery, air-quality status and network diagnostics.
+- Kept technical diagnostics disabled by default and fetch stable diagnostics hourly when enabled.
+- Split state reads to respect the documented UDP packet limit.
+- New write controls validate ranges and device acknowledgements; hardware write testing is pending.
+
+## 0.2.3
+
+- Added an editable local device date/time entity for RTC parameters 111 and 112.
+- Poll only parameters required by enabled entities, including on startup.
+- Categorized diagnostic sensors and disabled technical detail sensors by default.
+
+## 0.2.2
+
+- Added a per-device button to set the clock and calendar from Home Assistant local time.
+- Clarified protocol capabilities that are not yet exposed.
+
 ## 0.2.0
 
 - Added outdoor, supply, extract inlet, and extract outlet temperature sensors.

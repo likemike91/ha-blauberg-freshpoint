@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import socket
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Iterable
+
+from .settings import SETTINGS_BY_KEY, SETTINGS
 
 from .const import (
     DEFAULT_DEVICE_ID,
     DEFAULT_PORT,
+    PARAM_RTC_TIME,
+    PARAM_RTC_CALENDAR,
     PARAM_CO2,
     PARAM_DEVICE_ID,
     PARAM_DEVICE_TYPE,
@@ -44,6 +49,14 @@ FUNC_WRITE_WITH_RESPONSE = 0x03
 FUNC_RESPONSE = 0x06
 
 PARAM_SIZES = {
+    11: 3,
+    36: 2,
+    132: 5,
+    134: 6,
+    154: 1,
+    163: 4,
+    PARAM_RTC_TIME: 3,
+    PARAM_RTC_CALENDAR: 4,
     PARAM_POWER: 1,
     PARAM_SPEED_MODE: 1,
     PARAM_TIMER_MODE: 1,
@@ -70,6 +83,8 @@ PARAM_SIZES = {
     PARAM_FROST_PROTECTION: 1,
     PARAM_VOC: 2,
 }
+
+PARAM_SIZES.update({setting.param: setting.size for setting in SETTINGS})
 
 DEVICE_TYPE_NAMES = {
     17: "Freshpoint 160",
@@ -106,6 +121,9 @@ class FreshpointTimeoutError(FreshpointError):
 class FreshpointState:
     """Current state read from a Freshpoint unit."""
 
+    values: dict[int, int | bytes | None] = field(default_factory=dict)
+    rtc_time: int | None = None
+    rtc_calendar: int | None = None
     power: int | None = None
     speed_mode: int | None = None
     timer_mode: int | None = None
@@ -129,6 +147,60 @@ class FreshpointState:
     frost_protection: int | None = None
     voc: int | None = None
     device_type: int | None = None
+
+
+def decode_rtc_datetime(clock: int | None, calendar: int | None) -> datetime | None:
+    """Decode the device's local wall clock, rejecting malformed RTC fields."""
+    if not isinstance(clock, int) or not isinstance(calendar, int):
+        return None
+    if not 0 <= clock < 1 << 24 or not 0 <= calendar < 1 << 32:
+        return None
+    day, weekday, month, year = calendar.to_bytes(4, "little")
+    second, minute, hour = clock.to_bytes(3, "little")
+    if year > 99 or not 1 <= weekday <= 7:
+        return None
+    try:
+        return datetime(2000 + year, month, day, hour, minute, second)
+    except ValueError:
+        return None
+
+
+def decode_timer_seconds(value: int | bytes | None) -> int | None:
+    """Decode seconds/minutes/hours, rejecting unsupported or invalid values."""
+    if not isinstance(value, int) or not 0 <= value < 1 << 24:
+        return None
+    second, minute, hour = value.to_bytes(3, "little")
+    if second > 59 or minute > 59 or hour > 23:
+        return None
+    return hour * 3600 + minute * 60 + second
+
+
+def decode_alarms(value: int | bytes | None) -> list[dict] | None:
+    """Preserve alarm codes and documented severity without guessing descriptions."""
+    if not isinstance(value, bytes) or len(value) % 2:
+        return None
+    return [
+        {"code": value[i], "type": {1: "alarm", 2: "warning"}.get(value[i + 1], "unknown")}
+        for i in range(0, len(value), 2)
+    ]
+
+
+def decode_firmware(value: int | bytes | None) -> tuple[str, str] | None:
+    """Return version and ISO build date from six bytes."""
+    if not isinstance(value, bytes) or len(value) != 6:
+        return None
+    try:
+        build_date = datetime(int.from_bytes(value[4:6], "little"), value[3], value[2])
+    except ValueError:
+        return None
+    return f"{value[0]}.{value[1]}", build_date.date().isoformat()
+
+
+def decode_air_quality_flag(value: int | bytes | None, index: int) -> bool | None:
+    """Read the reported threshold flag; it is not a calculated comparison."""
+    if not isinstance(value, bytes) or len(value) != 5 or value[index] not in (0, 1):
+        return None
+    return bool(value[index])
 
 
 def _checksum(payload: bytes | bytearray) -> int:
@@ -208,16 +280,25 @@ def _parse_response(data: bytes) -> dict[int, int | bytes | None]:
     if received_checksum != expected_checksum:
         raise FreshpointError("response checksum mismatch")
 
+    end = len(data) - 2
     pos = 2
+
+    def require(size: int) -> None:
+        if pos + size > end:
+            raise FreshpointError("truncated Freshpoint response")
+
+    require(2)
     protocol_type = data[pos]
     pos += 1
     if protocol_type != PROTOCOL_TYPE:
         raise FreshpointError(f"unexpected protocol type {protocol_type}")
 
     id_len = data[pos]
+    require(1 + id_len + 1)
     pos += 1 + id_len
 
     password_len = data[pos]
+    require(1 + password_len + 1)
     pos += 1 + password_len
 
     function = data[pos]
@@ -232,24 +313,28 @@ def _parse_response(data: bytes) -> dict[int, int | bytes | None]:
         pos += 1
         size = 1
         if byte == 0xFF:
+            require(1)
             page = data[pos]
             pos += 1
             continue
         if byte == 0xFD:
+            require(1)
             unsupported_param = (page << 8) | data[pos]
             pos += 1
             values[unsupported_param] = None
             continue
         if byte == 0xFE:
+            require(2)
             size = data[pos]
             pos += 1
             byte = data[pos]
             pos += 1
 
         param = (page << 8) | byte
+        require(size)
         raw = data[pos : pos + size]
         pos += size
-        if param == PARAM_DEVICE_ID:
+        if param in (PARAM_DEVICE_ID, 127, 132, 134):
             values[param] = raw
         else:
             values[param] = int.from_bytes(raw, "little")
@@ -358,12 +443,29 @@ class FreshpointClient:
 
     def read(self, params: Iterable[int]) -> dict[int, int | bytes | None]:
         """Read raw parameter values."""
-        return self._send(FUNC_READ, _read_param_stream(params))
+        values = {}
+        batch = []
+        estimated_size = 0
+        for param in params:
+            # Leave room for headers, page/size markers and variable-length alarms.
+            size = PARAM_SIZES.get(param, 1) + 5
+            if batch and (estimated_size + size > 160 or param == 127 or 127 in batch):
+                values.update(self._send(FUNC_READ, _read_param_stream(batch)))
+                batch = []
+                estimated_size = 0
+            batch.append(param)
+            estimated_size += size
+        if batch:
+            values.update(self._send(FUNC_READ, _read_param_stream(batch)))
+        return values
 
     def read_state(self, params: Iterable[int]) -> FreshpointState:
         """Read and map the current device state."""
         values = self.read(params)
         return FreshpointState(
+            values=values,
+            rtc_time=values.get(PARAM_RTC_TIME),
+            rtc_calendar=values.get(PARAM_RTC_CALENDAR),
             power=values.get(PARAM_POWER),
             speed_mode=values.get(PARAM_SPEED_MODE),
             timer_mode=values.get(PARAM_TIMER_MODE),
@@ -433,3 +535,24 @@ class FreshpointClient:
     def reset_filter(self) -> None:
         """Reset the filter replacement countdown."""
         self.write([(PARAM_FILTER_RESET, 1)])
+
+    def set_datetime(self, value: datetime) -> None:
+        """Set the local RTC time and calendar in one request (years 2000-2099)."""
+        if not 2000 <= value.year <= 2099:
+            raise ValueError("Freshpoint RTC supports years 2000-2099")
+        clock = int.from_bytes(bytes((value.second, value.minute, value.hour)), "little")
+        calendar = int.from_bytes(
+            bytes((value.day, value.isoweekday(), value.month, value.year - 2000)),
+            "little",
+        )
+        response = self.write([(PARAM_RTC_TIME, clock), (PARAM_RTC_CALENDAR, calendar)])
+        if any(response.get(param) is None for param in (PARAM_RTC_TIME, PARAM_RTC_CALENDAR)):
+            raise FreshpointError("Device did not acknowledge RTC time and calendar")
+
+    def set_setting(self, key: str, value: int | float) -> None:
+        """Validate, write and check the device's acknowledged setting."""
+        setting = SETTINGS_BY_KEY[key]
+        encoded = setting.encode(value)
+        response = self.write([(setting.param, encoded)])
+        if response.get(setting.param) != encoded:
+            raise FreshpointError(f"Device did not confirm setting {key}")

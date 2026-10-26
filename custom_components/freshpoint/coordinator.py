@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 import logging
+from time import monotonic
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_BROADCAST_ADDRESS,
@@ -22,14 +25,15 @@ from .const import (
     DEFAULT_DISCOVERY_BROADCAST,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
-    READ_PARAMS,
 )
+from .polling import enabled_read_params
 from .protocol import (
     FreshpointClient,
     FreshpointError,
     FreshpointState,
     FreshpointTimeoutError,
     discover_freshpoints,
+    decode_firmware,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +46,8 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
         self.config_entry = config_entry
         self.device = device
         self._rediscovery_lock = asyncio.Lock()
+        self._diagnostic_cache = {}
+        self._diagnostic_updated = {}
         self.client = FreshpointClient(
             device[CONF_HOST],
             device[CONF_CONTROLLER_ID],
@@ -57,7 +63,44 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
 
     async def _async_update_data(self) -> FreshpointState:
         try:
-            return await self._async_call_with_rediscovery(self.client.read_state, READ_PARAMS)
+            registry = er.async_get(self.hass)
+
+            def lookup(platform, unique_id):
+                entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
+                return registry.async_get(entity_id) if entity_id else None
+
+            params = enabled_read_params(self.device[CONF_CONTROLLER_ID], lookup)
+            if not params:
+                return FreshpointState()
+            # Stable diagnostics need not be fetched at the 20-second control interval.
+            slow = {36, 134, 154, 163}
+            now = monotonic()
+            requested = [
+                param for param in params
+                if param not in slow or now - self._diagnostic_updated.get(param, -3600) >= 3600
+            ]
+            state = (
+                await self._async_call_with_rediscovery(self.client.read_state, requested)
+                if requested else FreshpointState()
+            )
+            for param in requested:
+                if param in slow:
+                    self._diagnostic_cache[param] = state.values.get(param)
+                    self._diagnostic_updated[param] = now
+            cached = {
+                param: self._diagnostic_cache[param]
+                for param in params if param in self._diagnostic_cache
+            }
+            state = replace(state, values={**cached, **state.values})
+            firmware = decode_firmware(state.values.get(134))
+            if firmware:
+                devices = dr.async_get(self.hass)
+                device = devices.async_get_device(
+                    identifiers={(DOMAIN, self.device[CONF_CONTROLLER_ID])}
+                )
+                if device and device.sw_version != firmware[0]:
+                    devices.async_update_device(device.id, sw_version=firmware[0])
+            return state
         except (FreshpointError, OSError) as exc:
             raise UpdateFailed(str(exc)) from exc
 
@@ -110,6 +153,7 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
 
     def _update_host(self, host: str) -> None:
         """Update the runtime client and persisted config entry host."""
+        self._diagnostic_updated.clear()
         self.client.host = host
         self.device = {**self.device, CONF_HOST: host}
         devices = [
@@ -169,4 +213,26 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
     async def async_reset_filter(self) -> None:
         """Reset filter countdown and refresh state."""
         await self._async_call_with_rediscovery(self.client.reset_filter)
+        await self.async_request_refresh()
+
+    async def async_set_current_time(self) -> None:
+        """Copy Home Assistant's configured local date and time to the device."""
+        await self._async_call_with_rediscovery(
+            self._set_current_time,
+        )
+        await self.async_request_refresh()
+
+    def _set_current_time(self) -> None:
+        """Sample the current time in the executor, including after rediscovery."""
+        self.client.set_datetime(dt_util.now())
+
+    async def async_set_datetime(self, value: datetime) -> None:
+        """Write both RTC parameters in Home Assistant's local timezone."""
+        local_value = dt_util.as_local(value)
+        await self._async_call_with_rediscovery(self.client.set_datetime, local_value)
+        await self.async_request_refresh()
+
+    async def async_set_setting(self, key: str, value: int | float) -> None:
+        """Apply a documented setting, then refresh enabled entity values."""
+        await self._async_call_with_rediscovery(self.client.set_setting, key, value)
         await self.async_request_refresh()
