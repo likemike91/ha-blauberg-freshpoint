@@ -19,10 +19,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install test dependencies
+        run: python -m pip install -r requirements_test.txt
+
       - name: Compile Python files
         run: python -m py_compile custom_components/freshpoint/*.py freshpoint_probe.py
 
-      - name: Run protocol unit tests
+      - name: Run unit tests
         run: python -m unittest discover
 
       - name: Validate JSON files

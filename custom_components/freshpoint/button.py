@@ -73,4 +73,4 @@ class FreshpointSetTimeButton(FreshpointFilterResetButton):
 
     async def async_press(self) -> None:
         """Set the current local time and calendar."""
-        await self.coordinator.async_set_current_time()
+        await self.coordinator.async_set_current_datetime()

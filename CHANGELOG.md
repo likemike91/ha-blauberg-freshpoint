@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1
+
+- Disable the live device clock by default for new entities, avoiding continuous clock Activity/history updates; existing installations can disable it manually.
+- Add device-level set_datetime and set_current_datetime actions independent of enabled entities.
+- Keep the current-time button on the shared coordinator method without changing its entity identity.
+- Add HACS-facing release notes and a tag-triggered GitHub Release workflow.
+
 ## 0.3.0
 
 - Added fan speed-mode selection, humidity/CO2/VOC automatic controls and thresholds.

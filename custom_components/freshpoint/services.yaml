@@ -1,0 +1,35 @@
+set_datetime:
+  name: Set device date and time
+  description: >-
+    Set both device clock and calendar (years 2000-2099). Values without a timezone
+    use Home Assistant's timezone; values with an offset are converted to it.
+    Works even when the device date/time entity is disabled. May affect a running schedule.
+  fields:
+    device_id:
+      name: Freshpoint devices
+      description: Select one or more loaded Freshpoint devices.
+      required: true
+      selector:
+        device:
+          integration: freshpoint
+          multiple: true
+    datetime:
+      name: Date and time
+      required: true
+      example: "2026-10-26 12:30:00"
+      selector:
+        datetime:
+set_current_datetime:
+  name: Set current device date and time
+  description: >-
+    Copy Home Assistant's current local date and time to the selected devices.
+    Works even when the device date/time entity is disabled. May affect a running schedule.
+  fields:
+    device_id:
+      name: Freshpoint devices
+      description: Select one or more loaded Freshpoint devices.
+      required: true
+      selector:
+        device:
+          integration: freshpoint
+          multiple: true

@@ -215,14 +215,14 @@ class FreshpointCoordinator(DataUpdateCoordinator[FreshpointState]):
         await self._async_call_with_rediscovery(self.client.reset_filter)
         await self.async_request_refresh()
 
-    async def async_set_current_time(self) -> None:
+    async def async_set_current_datetime(self) -> None:
         """Copy Home Assistant's configured local date and time to the device."""
         await self._async_call_with_rediscovery(
-            self._set_current_time,
+            self._set_current_datetime,
         )
         await self.async_request_refresh()
 
-    def _set_current_time(self) -> None:
+    def _set_current_datetime(self) -> None:
         """Sample the current time in the executor, including after rediscovery."""
         self.client.set_datetime(dt_util.now())
 
