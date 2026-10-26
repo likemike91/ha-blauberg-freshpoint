@@ -30,11 +30,17 @@ def local_time(value):
 def load_services(resolve):
     names = (
         "homeassistant", "homeassistant.core", "homeassistant.exceptions",
+        "homeassistant.auth", "homeassistant.auth.permissions", "homeassistant.auth.permissions.const",
+        "homeassistant.helpers.entity_registry",
         "homeassistant.helpers", "homeassistant.helpers.service",
         "homeassistant.helpers.config_validation", "homeassistant.util",
         "homeassistant.util.dt", "custom_components.freshpoint.coordinator",
     )
     modules = {name: types.ModuleType(name) for name in names}
+    modules["homeassistant.auth.permissions.const"].POLICY_CONTROL = "control"
+    modules["homeassistant.helpers.entity_registry"].async_get = lambda hass: hass.registry
+    modules["homeassistant.exceptions"].Unauthorized = ValidationError
+    modules["homeassistant.exceptions"].UnknownUser = ValidationError
     modules["homeassistant.core"].HomeAssistant = object
     modules["homeassistant.core"].ServiceCall = object
     modules["homeassistant.core"].callback = lambda function: function
@@ -53,6 +59,21 @@ def load_services(resolve):
         except (ValueError, TypeError) as exc:
             raise vol.Invalid("Invalid datetime") from exc
 
+    def make_schema(fields):
+        targets = {vol.Optional(key): vol.All(cv.ensure_list, [str])
+                   for key in ("entity_id", "device_id", "area_id", "label_id", "floor_id")}
+        def require_target(data):
+            if not any(data.get(key) for key in ("entity_id", "device_id", "area_id", "label_id", "floor_id")):
+                raise vol.Invalid("Target required")
+            return data
+        return vol.All(vol.Schema({**targets, **fields}), require_target)
+    cv.make_entity_service_schema = make_schema
+    async def extract(call, expand_group=True):
+        result = set()
+        for entity_id in call.data.get("entity_id", []):
+            result.update(call.hass.groups.get(entity_id, [entity_id]))
+        return result
+    modules["homeassistant.helpers.service"].async_extract_entity_ids = extract
     cv.datetime = parse_datetime
     modules["homeassistant.util.dt"].as_local = local_time
     modules["custom_components.freshpoint.coordinator"].FreshpointCoordinator = object
@@ -102,12 +123,18 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
         self.hass = types.SimpleNamespace(
             data={"freshpoint": {"entry1": self.coordinators[:2], "entry2": self.coordinators[2:]}},
             services=types.SimpleNamespace(async_register=register),
+            registry=types.SimpleNamespace(async_get=lambda eid: self.entity_entries.get(eid)),
+            groups={"fan.ventilation": ["fan.first", "fan.second", "fan.third"]},
         )
+        self.entity_entries = {
+            f"fan.{controller}": types.SimpleNamespace(platform="freshpoint", device_id=device_id)
+            for device_id, (controller, _) in self.devices.items()
+        }
         self.module.async_setup_services(self.hass)
 
     async def call(self, action, data):
         handler, schema = self.actions[action]
-        await handler(types.SimpleNamespace(service=action, data=schema(data)))
+        await handler(types.SimpleNamespace(service=action, data=schema(data), hass=self.hass, context=types.SimpleNamespace(user_id=None)))
 
     async def test_current_clock_routes_selected_devices_only(self):
         await self.call("set_current_datetime", {"device_id": ["device1", "device3"]})
@@ -172,5 +199,38 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
         for action, description in descriptions.items():
             selector = description["fields"]["device_id"]["selector"]["device"]
             self.assertEqual(selector, {"integration": "freshpoint", "multiple": True})
-            self.assertTrue(description["fields"]["device_id"]["required"])
+            self.assertFalse(description["fields"]["device_id"]["required"])
+            self.assertEqual(description["target"], {"entity": {"domain": "fan"}})
         self.assertTrue(descriptions["set_datetime"]["fields"]["datetime"]["required"])
+
+
+    async def test_group_target_sets_each_device_once(self):
+        await self.call("set_current_datetime", {"entity_id": ["fan.ventilation", "fan.first"]})
+        for coordinator in self.coordinators:
+            coordinator.async_set_current_datetime.assert_awaited_once_with()
+
+    async def test_entity_target_and_legacy_device_deduplicate(self):
+        await self.call("set_current_datetime", {"entity_id": "fan.first", "device_id": "device1"})
+        self.coordinators[0].async_set_current_datetime.assert_awaited_once_with()
+        self.coordinators[1].async_set_current_datetime.assert_not_awaited()
+
+    async def test_datetime_group_target(self):
+        await self.call("set_datetime", {"entity_id": "fan.ventilation", "datetime": "2026-10-26 12:30:00"})
+        for coordinator in self.coordinators:
+            coordinator.async_set_datetime.assert_awaited_once_with(datetime(2026, 10, 26, 12, 30, tzinfo=LOCAL_TZ))
+
+    async def test_empty_or_foreign_group_does_not_write(self):
+        self.hass.groups["fan.empty"] = []
+        self.entity_entries["fan.foreign"] = types.SimpleNamespace(platform="other", device_id="device1")
+        for entity_id in ("fan.empty", "fan.missing", "fan.foreign"):
+            with self.assertRaises(ValidationError):
+                await self.call("set_current_datetime", {"entity_id": entity_id})
+        for coordinator in self.coordinators:
+            coordinator.async_set_current_datetime.assert_not_awaited()
+
+    async def test_failed_member_does_not_block_remaining_devices(self):
+        self.coordinators[0].async_set_current_datetime.side_effect = protocol.FreshpointError("offline")
+        with self.assertRaisesRegex(RuntimeError, "Could not set all"):
+            await self.call("set_current_datetime", {"entity_id": "fan.ventilation"})
+        for coordinator in self.coordinators:
+            coordinator.async_set_current_datetime.assert_awaited_once_with()

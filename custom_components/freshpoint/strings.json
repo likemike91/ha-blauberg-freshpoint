@@ -295,11 +295,11 @@
   "services": {
     "set_datetime": {
       "name": "Set device date and time",
-      "description": "Set the clock and calendar on selected devices, including when the date/time entity is disabled. Uses Home Assistant's timezone. May affect a running schedule.",
+      "description": "Set the clock and calendar on selected devices, including when the date/time entity is disabled. Uses Home Assistant's timezone. May affect a running schedule. Target Freshpoint fans or fan groups; device selection is retained for existing automations.",
       "fields": {
         "device_id": {
-          "name": "Freshpoint devices",
-          "description": "Select one or more loaded Freshpoint devices."
+          "name": "Freshpoint devices (legacy)",
+          "description": "Optional legacy device selection. Prefer the fan or fan-group target."
         },
         "datetime": {
           "name": "Date and time",
@@ -309,11 +309,11 @@
     },
     "set_current_datetime": {
       "name": "Set current device date and time",
-      "description": "Copy Home Assistant's current local date and time to selected devices, including when the date/time entity is disabled. May affect a running schedule.",
+      "description": "Copy Home Assistant's current local date and time to selected devices, including when the date/time entity is disabled. May affect a running schedule. Target Freshpoint fans or fan groups; device selection is retained for existing automations.",
       "fields": {
         "device_id": {
-          "name": "Freshpoint devices",
-          "description": "Select one or more loaded Freshpoint devices."
+          "name": "Freshpoint devices (legacy)",
+          "description": "Optional legacy device selection. Prefer the fan or fan-group target."
         }
       }
     }
