@@ -81,11 +81,6 @@
         "name": "Set current time"
       }
     },
-    "fan": {
-      "fan": {
-        "name": null
-      }
-    },
     "select": {
       "operating_mode": {
         "name": "Operating mode",

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+
+- Fix Home Assistant 2026.11 startup failing on null fan-name translations.
+- Preserve device-based fan names by defining the primary entity name in Python.
+
 ## 0.3.2
 
 - Support fan and fan-group targets for both clock actions while preserving device-ID calls.
