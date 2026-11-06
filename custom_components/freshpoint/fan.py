@@ -30,7 +30,8 @@ class FreshpointFan(CoordinatorEntity[FreshpointCoordinator], FanEntity):
         FanEntityFeature.SET_SPEED | FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
     )
     _attr_has_entity_name = True
-    _attr_translation_key = "fan"
+    # The primary entity uses the device name without a translated suffix.
+    _attr_name = None
     _attr_speed_count = 91
 
     def __init__(self, coordinator: FreshpointCoordinator) -> None:
